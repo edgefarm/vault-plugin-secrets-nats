@@ -1,0 +1,23 @@
+version: '3.7'
+services:
+  nats:
+    image: nats:2.9.0-alpine
+    ports:
+      - "8222:8222"
+    command: "--http_port 8222 --config /server.conf"
+    networks: ["nats"]
+    volumes:
+      - $PWD/server.conf:/server.conf
+networks:
+  nats:
+    name: nats
+  
+  
+  # db:
+  #   image: "hashicorpdemoapp/product-api-db:v0.0.17"
+  #   ports:
+  #     - "15432:5432"
+  #   environment:
+  #     POSTGRES_DB: 'products'
+  #     POSTGRES_USER: 'postgres'
+  #     POSTGRES_PASSWORD: 'password'
