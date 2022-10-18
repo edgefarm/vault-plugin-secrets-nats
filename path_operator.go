@@ -2,10 +2,13 @@ package natssecretsengine
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+
+	"github.com/nats-io/nkeys"
 )
 
 const (
@@ -14,7 +17,10 @@ const (
 
 // natsOperator stores informations about the operator.
 type natsOperator struct {
-	Name string `json:"name"`
+	Name       string `json:"name"`
+	PublicKey  string `json:"public-key"`
+	PrivateKey string `json:"private-key"`
+	Seed       string `json:"seed"`
 }
 
 // pathOperator extends the Vault API with a `/operator`
@@ -74,7 +80,10 @@ func (b *natsBackend) pathOperatorRead(ctx context.Context, req *logical.Request
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"name": operator.Name,
+			"name":        operator.Name,
+			"public-key":  operator.PublicKey,
+			"private-key": operator.PrivateKey,
+			"seed":        operator.Seed,
 		},
 	}, nil
 }
@@ -90,17 +99,48 @@ func (b *natsBackend) pathOperatorGenerate(ctx context.Context, req *logical.Req
 		operator = new(natsOperator)
 	}
 
+	// store provided operator name
 	if name, ok := data.GetOk("name"); ok {
 		operator.Name = name.(string)
 	} else if !ok {
 		return nil, fmt.Errorf("missing name for operator")
 	}
 
+	// create operator keypair
+	keypair, err := nkeys.CreateOperator()
+	if err != nil {
+		return nil, err
+	}
+
+	// store public key
+	operator.PublicKey, err = keypair.PublicKey()
+	if err != nil {
+		return nil, err
+	}
+
+	// store private key
+	var pKey []byte
+	pKey, err = keypair.PrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	operator.PrivateKey = base64.StdEncoding.EncodeToString(pKey)
+
+	// store seed
+	var seed []byte
+	seed, err = keypair.Seed()
+	if err != nil {
+		return nil, err
+	}
+	operator.Seed = base64.StdEncoding.EncodeToString(seed)
+
+	// convert to json
 	entry, err := logical.StorageEntryJSON(operatorStoragePath, operator)
 	if err != nil {
 		return nil, err
 	}
 
+	// store in vault storage
 	if err := req.Storage.Put(ctx, entry); err != nil {
 		return nil, err
 	}

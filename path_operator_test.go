@@ -18,7 +18,7 @@ const (
 func TestOperator(t *testing.T) {
 	b, reqStorage := getTestBackend(t)
 
-	t.Run("Test Configuration", func(t *testing.T) {
+	t.Run("Test Operator", func(t *testing.T) {
 
 		_, err := testOperatorGenerate(t, b, reqStorage, map[string]interface{}{
 			"name": name,
@@ -72,6 +72,8 @@ func testOperatorRead(t *testing.T, b logical.Backend, s logical.Storage, expect
 	if len(expected) != len(resp.Data) {
 		return fmt.Errorf("read data mismatch (expected %d values, got %d)", len(expected), len(resp.Data))
 	}
+
+	t.Log(resp.Data)
 
 	for k, expectedV := range expected {
 		actualV, ok := resp.Data[k]

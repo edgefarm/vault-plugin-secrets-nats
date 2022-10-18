@@ -9,5 +9,6 @@ require (
 	github.com/hashicorp/yamux v0.0.0-20181012175058-2f1d1f20f75d // indirect
 	github.com/nats-io/nats-server/v2 v2.9.3 // indirect
 	github.com/nats-io/nats.go v1.18.0
+	github.com/nats-io/nkeys v0.3.0
 	github.com/stretchr/testify v1.7.1
 )
