@@ -1,0 +1,23 @@
+@startmindmap
+* nats
+** cmd
+*** operator
+**** account
+***** <account>
+****** user
+******* <user>
+** nkey
+*** operator
+**** <operator>
+*** account
+**** <account>
+*** user
+**** <user>
+** jwt
+*** operator
+**** account
+***** <account>
+****** user
+******* <user>
+
+@endmindmap
