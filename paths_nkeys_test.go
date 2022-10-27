@@ -90,7 +90,8 @@ func TestNkeys(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, len(resp.Data), 2)
 
-		// assert.Equal(t, keypair.PublicKey, ["PrivateKey"])
+		assert.Equal(t, keypair.PublicKey, resp.Data["KeyPair"].(map[string]interface{})["PublicKey"])
+		assert.Equal(t, keypair.PrivateKey, resp.Data["KeyPair"].(map[string]interface{})["PrivateKey"])
 
 		// TODO: generate nkey only with public key
 
