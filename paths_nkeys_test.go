@@ -2,6 +2,7 @@ package natsbackend
 
 import (
 	"context"
+	"encoding/base64"
 	"testing"
 
 	"github.com/hashicorp/vault/sdk/logical"
@@ -27,7 +28,7 @@ func TestNkeys(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, len(resp.Data), 2)
+		assert.Equal(t, 4, len(resp.Data))
 		assert.Equal(t, resp.Data["name"], "op1")
 	})
 
@@ -46,7 +47,7 @@ func TestNkeys(t *testing.T) {
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, len(resp.Data), 2)
+		assert.Equal(t, 4, len(resp.Data))
 	})
 
 	t.Run("Test user nkey", func(t *testing.T) {
@@ -55,7 +56,6 @@ func TestNkeys(t *testing.T) {
 		_, err := testNkeyCreate(t, b, reqStorage, "nkey/user/us1", map[string]interface{}{
 			"name": "us1",
 		})
-
 		assert.NoError(t, err)
 
 		// Readout nkey
@@ -64,18 +64,16 @@ func TestNkeys(t *testing.T) {
 			Path:      "nkey/user/us1",
 			Storage:   reqStorage,
 		})
-
 		assert.NoError(t, err)
-		assert.Equal(t, len(resp.Data), 2)
+		assert.Equal(t, 4, len(resp.Data))
 
 		// Generate second nkey, but provide existing nkey per params
 		var ctx context.Context
-		keypair, err := generateNkey(ctx, nkeys.PrefixByteUser)
+		keypair, err := createKeyPair(ctx, nkeys.PrefixByteUser)
 		assert.NoError(t, err)
 
 		_, err = testNkeyCreate(t, b, reqStorage, "nkey/user/us2", map[string]interface{}{
-			"public_key":  keypair.PublicKey,
-			"private_key": keypair.PrivateKey,
+			"seed": keypair.Seed,
 		})
 		assert.NoError(t, err)
 
@@ -85,17 +83,16 @@ func TestNkeys(t *testing.T) {
 			Path:      "nkey/user/us2",
 			Storage:   reqStorage,
 		})
-
-		// TODO: check nkey
 		assert.NoError(t, err)
-		assert.Equal(t, len(resp.Data), 2)
-
-		assert.Equal(t, keypair.PublicKey, resp.Data["KeyPair"].(map[string]interface{})["PublicKey"])
-		assert.Equal(t, keypair.PrivateKey, resp.Data["KeyPair"].(map[string]interface{})["PrivateKey"])
-
-		// TODO: generate nkey only with public key
-
-		// TODO: try and fail to create nkey only with private key
+		assert.Equal(t, 4, len(resp.Data))
+		assert.Equal(t, keypair.Seed, resp.Data["seed"])
+		raw, err := base64.StdEncoding.DecodeString(resp.Data["seed"].(string))
+		assert.NoError(t, err)
+		nk, err := nkeys.FromSeed(raw)
+		assert.NoError(t, err)
+		pub, err := nk.PublicKey()
+		assert.NoError(t, err)
+		assert.Equal(t, pub, resp.Data["public_key"])
 	})
 }
 

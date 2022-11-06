@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/mitchellh/mapstructure"
 )
 
 // natsBackend defines an object that
@@ -45,6 +46,7 @@ func backend() *NatsBackend {
 		Paths: framework.PathAppend(
 			pathNkey(&b),
 			pathJWT(&b),
+			pathCmd(&b),
 			[]*framework.Path{},
 		),
 		Secrets: []*framework.Secret{
@@ -110,4 +112,62 @@ func (b *NatsBackend) put(ctx context.Context, s logical.Storage, path string, d
 	}
 
 	return nil
+}
+
+func getFromStorage[T any](ctx context.Context, s logical.Storage, path string) (*T, error) {
+	if path == "" {
+		return nil, fmt.Errorf("missing path")
+	}
+
+	// get data entry from storage backend
+	entry, err := s.Get(ctx, path)
+	if err != nil {
+		return nil, fmt.Errorf("error retrieving Data: %w", err)
+	}
+
+	if entry == nil {
+		return nil, nil
+	}
+
+	// convert json data to T
+	var t T
+	if err := entry.DecodeJSON(&t); err != nil {
+		return nil, fmt.Errorf("error decoding JWT data: %w", err)
+	}
+	return &t, nil
+}
+
+func storeInStorage[T any](ctx context.Context, s logical.Storage, path string, t *T) (*T, error) {
+	entry, err := logical.StorageEntryJSON(path, t)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := s.Put(ctx, entry); err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+}
+
+func readOperation[T any](ctx context.Context, s logical.Storage, path string) (*logical.Response, error) {
+	t, err := getFromStorage[T](ctx, s, path)
+	if err != nil {
+		return nil, err
+	}
+
+	if t == nil {
+		return nil, nil
+	}
+
+	var groupMap map[string]interface{}
+
+	err = mapstructure.Decode(t, &groupMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return &logical.Response{
+		Data: groupMap,
+	}, nil
 }

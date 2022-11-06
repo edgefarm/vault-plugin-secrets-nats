@@ -7,21 +7,38 @@ import (
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/nats-io/nkeys"
 )
 
-// Nkey represens a named nkey public key private key pair.
+// Nkey represens a named NKey keypair.
 type Nkey struct {
 	Name string `json:"name" mapstructure:"name"`
 	KeyPair
 }
 
-// keyPair represens a nkey public key private key pair
+// keyPair represens a nkey seed, which can be used to generate a public key and private key.
 type KeyPair struct {
-	PublicKey  string `json:"public_key"`
-	PrivateKey string `json:"private_key"`
+	Seed string `json:"seed" mapstructure:"seed"`
+}
+
+// getPrefixByte is a helper function to get the prefix byte for a given category.
+func getPrefixByte(category string) (nkeys.PrefixByte, error) {
+	switch {
+	case category == "operator":
+		return nkeys.PrefixByteOperator, nil
+	case category == "account":
+		return nkeys.PrefixByteAccount, nil
+	case category == "user":
+		return nkeys.PrefixByteUser, nil
+	default:
+		return 0, fmt.Errorf("unknown nkey category: %s", category)
+	}
+}
+
+// getNkeyPath is a helper function to get the path for a given category and name.
+func getNkeyPath(category string, name string) string {
+	return "nkey/" + category + "/" + name
 }
 
 // pathNkey extends the Vault API with a `/nkey/<category>`
@@ -36,14 +53,9 @@ func pathNkey(b *NatsBackend) []*framework.Path {
 					Description: "Name of the Nkey.",
 					Required:    false,
 				},
-				"private_key": {
+				"seed": {
 					Type:        framework.TypeString,
-					Description: "Nkey private key - Base64 Encoded.",
-					Required:    false,
-				},
-				"public_key": {
-					Type:        framework.TypeString,
-					Description: "Nkey public key.",
+					Description: "Nkey seed - Base64 Encoded.",
 					Required:    false,
 				},
 			},
@@ -69,14 +81,9 @@ func pathNkey(b *NatsBackend) []*framework.Path {
 					Description: "Name of the Nkey.",
 					Required:    false,
 				},
-				"private_key": {
+				"seed": {
 					Type:        framework.TypeString,
-					Description: "Nkey private key - Base64 Encoded.",
-					Required:    false,
-				},
-				"public_key": {
-					Type:        framework.TypeString,
-					Description: "Nkey public key.",
+					Description: "Nkey seed - Base64 Encoded.",
 					Required:    false,
 				},
 			},
@@ -102,14 +109,9 @@ func pathNkey(b *NatsBackend) []*framework.Path {
 					Description: "Name of the Nkey.",
 					Required:    false,
 				},
-				"private_key": {
+				"seed": {
 					Type:        framework.TypeString,
-					Description: "Nkey private key - Base64 Encoded.",
-					Required:    false,
-				},
-				"public_key": {
-					Type:        framework.TypeString,
-					Description: "Nkey public key.",
+					Description: "Nkey seed - Base64 Encoded.",
 					Required:    false,
 				},
 			},
@@ -131,15 +133,15 @@ func pathNkey(b *NatsBackend) []*framework.Path {
 }
 
 func (b *NatsBackend) pathAddOperatorNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return b.pathAddNkey(ctx, req, data, "operator", nkeys.PrefixByteOperator)
+	return b.pathAddNkey(ctx, req, data, "operator")
 }
 
 func (b *NatsBackend) pathAddAccountNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return b.pathAddNkey(ctx, req, data, "account", nkeys.PrefixByteAccount)
+	return b.pathAddNkey(ctx, req, data, "account")
 }
 
 func (b *NatsBackend) pathAddUserNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return b.pathAddNkey(ctx, req, data, "user", nkeys.PrefixByteUser)
+	return b.pathAddNkey(ctx, req, data, "user")
 }
 
 func (b *NatsBackend) pathReadOperatorNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
@@ -155,6 +157,8 @@ func (b *NatsBackend) pathReadUserNkey(ctx context.Context, req *logical.Request
 }
 
 func (b *NatsBackend) pathReadNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, category string) (*logical.Response, error) {
+
+	// receive nkey data structure from storage
 	nkey, err := getNkey(ctx, req.Storage, category, data.Get("name").(string))
 	if err != nil {
 		return nil, err
@@ -164,49 +168,41 @@ func (b *NatsBackend) pathReadNkey(ctx context.Context, req *logical.Request, da
 		return nil, nil
 	}
 
-	var groupMap map[string]interface{}
-
-	err = mapstructure.Decode(nkey, &groupMap)
+	// convert seed into public/private key data structure
+	result, err := convertSeed(nkey.Seed)
 	if err != nil {
 		return nil, err
 	}
+	// add name to data structure
+	result["name"] = nkey.Name
 
+	// return data structure
 	return &logical.Response{
-		Data: groupMap,
+		Data: result,
 	}, nil
 }
 
-func (b *NatsBackend) pathAddNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, category string, prefix nkeys.PrefixByte) (*logical.Response, error) {
-
+func (b *NatsBackend) pathAddNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, category string) (*logical.Response, error) {
+	// readout fields
 	name := data.Get("name").(string)
-	privateKey := data.Get("private_key").(string)
-	publicKey := data.Get("public_key").(string)
+	seed := data.Get("seed").(string)
 
-	if publicKey == "" && privateKey != "" {
-		return logical.ErrorResponse("private key without public key"), nil
+	// when no seed is given, generate a new one
+	if seed == "" {
+		_, err := createNkey(ctx, req.Storage, category, name)
+		return nil, err
 	}
 
-	// when no key is given, generate a new one
-	if privateKey == "" && publicKey == "" {
+	// when a key is given, store it
+	err := addNkey(ctx, req.Storage, category, name, seed)
+	return nil, err
+}
 
-		kp, err := generateNkey(ctx, nkeys.PrefixByteOperator)
-		if err != nil {
-			return nil, err
-		}
-
-		privateKey = kp.PrivateKey
-		publicKey = kp.PublicKey
-	}
-
-	// when no name is given, use publicKey
-	if name == "" {
-		name = publicKey
-	}
-
+func addNkey(ctx context.Context, s logical.Storage, category string, name string, seed string) error {
 	// get Nkey storage
-	nkey, err := getNkey(ctx, req.Storage, category, name)
+	nkey, err := getNkey(ctx, s, category, name)
 	if err != nil {
-		return logical.ErrorResponse("missing peer"), err
+		return fmt.Errorf("missing peer")
 	}
 
 	// no storage exists, create new
@@ -216,15 +212,40 @@ func (b *NatsBackend) pathAddNkey(ctx context.Context, req *logical.Request, dat
 
 	// save modifications to storage
 	nkey.Name = name
-	nkey.PrivateKey = privateKey
-	nkey.PublicKey = publicKey
-	if err := b.put(ctx, req.Storage, "nkey/"+category+"/"+name, nkey); err != nil {
-		return nil, err
+	nkey.Seed = seed
+	if _, err := storeInStorage(ctx, s, getNkeyPath(category, name), nkey); err != nil {
+		return err
 	}
-	return nil, nil
+	return nil
 }
 
-func generateNkey(ctx context.Context, prefix nkeys.PrefixByte) (*KeyPair, error) {
+// createKeyPair creates a new Nkey keypair with name
+func createNkey(ctx context.Context, s logical.Storage, category string, name string) (*Nkey, error) {
+
+	// map category to prefix
+	prefix, err := getPrefixByte(category)
+	if err != nil {
+		return nil, err
+	}
+
+	// create a new Nkey keypair
+	kp, err := createKeyPair(ctx, prefix)
+	if err != nil {
+		return nil, err
+	}
+
+	// save modifications to storage
+	nkey := &Nkey{}
+	nkey.Name = name
+	nkey.Seed = kp.Seed
+	if _, err := storeInStorage(ctx, s, getNkeyPath(category, name), nkey); err != nil {
+		return nil, err
+	}
+	return nkey, nil
+}
+
+// createKeyPair creates a new Nkey keypair
+func createKeyPair(ctx context.Context, prefix nkeys.PrefixByte) (*KeyPair, error) {
 
 	var kp KeyPair
 
@@ -234,23 +255,17 @@ func generateNkey(ctx context.Context, prefix nkeys.PrefixByte) (*KeyPair, error
 		return nil, err
 	}
 
-	// store public key
-	kp.PublicKey, err = keypair.PublicKey()
+	// store seed
+	seed, err := keypair.Seed()
 	if err != nil {
 		return nil, err
 	}
-
-	// store private key
-	var pKey []byte
-	pKey, err = keypair.PrivateKey()
-	if err != nil {
-		return nil, err
-	}
-	kp.PrivateKey = base64.StdEncoding.EncodeToString(pKey)
+	kp.Seed = base64.StdEncoding.EncodeToString(seed)
 
 	return &kp, nil
 }
 
+// getNkey returns the Nkey object for the given name and category
 func getNkey(ctx context.Context, s logical.Storage, category, name string) (*Nkey, error) {
 
 	if category == "" {
@@ -261,20 +276,35 @@ func getNkey(ctx context.Context, s logical.Storage, category, name string) (*Nk
 		return nil, fmt.Errorf("missing name")
 	}
 
-	// get nkey from storage backend
-	entry, err := s.Get(ctx, "nkey/"+category+"/"+name)
+	return getFromStorage[Nkey](ctx, s, getNkeyPath(category, name))
+}
+
+// convertSeed converts a seed from a string to a map with publickey and private key.
+func convertSeed(seed string) (map[string]interface{}, error) {
+
+	s, err := base64.StdEncoding.DecodeString(seed)
 	if err != nil {
-		return nil, fmt.Errorf("error retrieving peer: %w", err)
+		return nil, err
 	}
 
-	if entry == nil {
-		return nil, nil
+	nk, err := nkeys.FromSeed(s)
+	if err != nil {
+		return nil, err
 	}
 
-	// convert nkey to json and return
-	var nkey Nkey
-	if err := entry.DecodeJSON(&nkey); err != nil {
-		return nil, fmt.Errorf("error decoding Nkey data: %w", err)
+	public, err := nk.PublicKey()
+	if err != nil {
+		return nil, err
 	}
-	return &nkey, nil
+
+	private, err := nk.PrivateKey()
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"public_key":  public,
+		"private_key": base64.StdEncoding.EncodeToString(private),
+		"seed":        seed,
+	}, nil
 }
