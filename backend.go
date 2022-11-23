@@ -137,6 +137,22 @@ func getFromStorage[T any](ctx context.Context, s logical.Storage, path string) 
 	return &t, nil
 }
 
+func deleteFromStorage(ctx context.Context, s logical.Storage, path string) error {
+	if path == "" {
+		return fmt.Errorf("missing path")
+	}
+
+	if _, err := s.List(ctx, path); err != nil {
+		return fmt.Errorf("error deleting data: %w", err)
+	}
+
+	if err := s.Delete(ctx, path); err != nil {
+		return fmt.Errorf("error deleting data: %w", err)
+	}
+
+	return nil
+}
+
 func storeInStorage[T any](ctx context.Context, s logical.Storage, path string, t *T) (*T, error) {
 	entry, err := logical.StorageEntryJSON(path, t)
 	if err != nil {

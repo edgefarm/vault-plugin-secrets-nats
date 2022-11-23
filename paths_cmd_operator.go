@@ -1,0 +1,224 @@
+package natsbackend
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nkeys"
+)
+
+func pathCmdOperator(b *NatsBackend) *framework.Path {
+	return &framework.Path{
+		Pattern: "cmd/operator",
+		Fields: map[string]*framework.FieldSchema{
+			"nkey_id": {
+				Type:        framework.TypeString,
+				Description: "Create or use existing NKey with this id.",
+				Required:    false,
+				Default:     "operator",
+			},
+			"signing_keys": {
+				Type:        framework.TypeStringSlice,
+				Description: "Slice of other operator NKeys IDs that can be used to sign on behalf of the main operator identity.",
+				Required:    false,
+			},
+			"strict_signing_key_usage": {
+				Type:        framework.TypeBool,
+				Description: "Signing of subordinate objects will require signing keys.",
+				Required:    false,
+				Default:     false,
+			},
+			"account_server_url": {
+				Type:        framework.TypeString,
+				Description: "Account Server URL for pushing jwt's.",
+				Required:    false,
+			},
+			"system_account": {
+				Type:        framework.TypeString,
+				Description: "Operator NKeys path of the system account.",
+				Required:    false,
+				Default:     "SYS",
+			},
+		},
+		Operations: map[logical.Operation]framework.OperationHandler{
+			logical.CreateOperation: &framework.PathOperation{
+				Callback: b.pathAddOperatorCmd,
+			},
+			logical.UpdateOperation: &framework.PathOperation{
+				Callback: b.pathAddOperatorCmd,
+			},
+			logical.ReadOperation: &framework.PathOperation{
+				Callback: b.pathReadOperatorCmd,
+			},
+			logical.DeleteOperation: &framework.PathOperation{
+				Callback: b.pathDeleteOperatorCmd,
+			},
+		},
+		HelpSynopsis:    `Manages operator Cmd.`,
+		HelpDescription: ``,
+	}
+}
+
+func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	// get Operator storage
+	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
+	if err != nil {
+		return logical.ErrorResponse("missing operator"), err
+	}
+	// no storage exists, create new
+	if params == nil {
+		params = &Parameters[jwt.OperatorClaims]{}
+	}
+
+	// if new nkey, delete old
+	if params.NKeyID != "" && params.NKeyID != data.Get("nkey_id").(string) {
+		err = deleteNKey(ctx, req.Storage, "operator", params.NKeyID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// create operator nkey
+	key, err := getNkey(ctx, req.Storage, "operator", data.Get("nkey_id").(string))
+	if err != nil {
+		return logical.ErrorResponse("error while accessing nkey storage"), err
+	}
+	if key == nil {
+		key, err = createNkey(ctx, req.Storage, "operator", data.Get("nkey_id").(string))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// convert operator key
+	converted, err := convertSeed(key.Seed)
+	if err != nil {
+		return nil, err
+	}
+
+	// update params
+	params.Name = "operator"
+	params.NKeyID = data.Get("nkey_id").(string)
+	params.TokenClaims.SigningKeys = data.Get("signing_keys").([]string)
+	params.TokenClaims.StrictSigningKeyUsage = data.Get("strict_signing_key_usage").(bool)
+	params.TokenClaims.AccountServerURL = data.Get("account_server_url").(string)
+	params.TokenClaims.SystemAccount = data.Get("system_account").(string)
+	params.TokenClaims.Subject = converted.PublicKey
+	updateOperatorJwt(ctx, req.Storage, params, converted.KeyPair)
+
+	// create siging keys
+	seed, err := converted.KeyPair.Seed() //.StdEncoding.DecodeString(okey.Seed)
+	if err != nil {
+		return nil, err
+	}
+	_, err = nkeys.FromSeed(seed)
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range params.TokenClaims.SigningKeys {
+		// get signing key
+		skey, err := getNkey(ctx, req.Storage, "operator", key)
+		if err != nil {
+			return logical.ErrorResponse("error while accessing nkey storage"), err
+		}
+		// create signing key if it doesn't exist
+		if skey == nil {
+			skey, err = createNkey(ctx, req.Storage, "operator", key)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// store operator parameters
+	_, err = storeInStorage(ctx, req.Storage, operatorCmdPath(), params)
+	if err != nil {
+		return nil, err
+	}
+
+	// check system account
+	// if operator.TokenClaims.SystemAccount != "" {
+	// 	// get system account
+	// 	sa, err := getNkey(ctx, req.Storage, "account", operator.TokenClaims.SystemAccount)
+	// 	if err != nil {
+	// 		return logical.ErrorResponse("error while accessing nkey storage"), err
+	// 	}
+
+	// 	// create system account
+	// 	if sa == nil {
+	// 		sa, err = createNkey(ctx, req.Storage, "account", operator.TokenClaims.SystemAccount)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 	}
+
+	// 	// get system account user
+	// 	sau, err := getNkey(ctx, req.Storage, "user", operator.TokenClaims.SystemAccount)
+	// 	if err != nil {
+	// 		return logical.ErrorResponse("error while accessing nkey storage"), err
+	// 	}
+
+	// 	// create system account user
+	// 	if sau == nil {
+	// 		sau, err = createNkey(ctx, req.Storage, "user", operator.TokenClaims.SystemAccount)
+	// 		if err != nil {
+	// 			return nil, err
+	// 		}
+	// 	}
+	// }
+
+	return nil, nil
+}
+
+func (b *NatsBackend) pathReadOperatorCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	return readOperation[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
+}
+
+func (b *NatsBackend) pathDeleteOperatorCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	// get Operator storage
+	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
+	if err != nil {
+		return logical.ErrorResponse("missing operator"), err
+	}
+
+	// delete referenced nkey
+	if params != nil {
+		err = deleteNKey(ctx, req.Storage, "operator", params.NKeyID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// delete operator storage
+	err = req.Storage.Delete(ctx, operatorCmdPath())
+	if err != nil {
+		return nil, fmt.Errorf("error deleting operator: %w", err)
+	}
+	return nil, nil
+}
+
+func updateOperatorJwt(ctx context.Context, s logical.Storage, p *Parameters[jwt.OperatorClaims], nkey nkeys.KeyPair) error {
+	token, err := getFromStorage[JwtToken](ctx, s, operatorJwtPath())
+	if err != nil {
+		return err
+	}
+	if token == nil {
+		token = &JwtToken{}
+	}
+
+	// create operator jwt
+	token.Jwt, err = p.TokenClaims.Encode(nkey)
+	if err != nil {
+		return err
+	}
+
+	err = addOperatorJWT(ctx, s, token.Jwt)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

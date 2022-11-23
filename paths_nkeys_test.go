@@ -69,11 +69,11 @@ func TestNkeys(t *testing.T) {
 
 		// Generate second nkey, but provide existing nkey per params
 		var ctx context.Context
-		keypair, err := createKeyPair(ctx, nkeys.PrefixByteUser)
+		seed, err := createSeed(ctx, nkeys.PrefixByteUser)
 		assert.NoError(t, err)
 
 		_, err = testNkeyCreate(t, b, reqStorage, "nkey/user/us2", map[string]interface{}{
-			"seed": keypair.Seed,
+			"seed": seed,
 		})
 		assert.NoError(t, err)
 
@@ -85,7 +85,7 @@ func TestNkeys(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, 4, len(resp.Data))
-		assert.Equal(t, keypair.Seed, resp.Data["seed"])
+		assert.Equal(t, seed, resp.Data["seed"])
 		raw, err := base64.StdEncoding.DecodeString(resp.Data["seed"].(string))
 		assert.NoError(t, err)
 		nk, err := nkeys.FromSeed(raw)
