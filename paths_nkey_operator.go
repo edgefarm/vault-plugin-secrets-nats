@@ -39,11 +39,11 @@ func pathOperatorNkey(b *NatsBackend) *framework.Path {
 }
 
 func (b *NatsBackend) pathAddOperatorNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return b.pathAddNkey(ctx, req, data, "operator")
+	return b.pathAddNkey(ctx, req, data, Operator)
 }
 
 func (b *NatsBackend) pathReadOperatorNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return b.pathReadNkey(ctx, req, data, "operator")
+	return b.pathReadNkey(ctx, req, data, Operator)
 }
 
 func (b *NatsBackend) pathOperatorNkeysList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {

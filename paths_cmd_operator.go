@@ -107,19 +107,19 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 
 	// if new nkey, delete old
 	if params.NKeyID != "" && params.NKeyID != data.Get("nkey_id").(string) {
-		err = deleteNKey(ctx, req.Storage, "operator", params.NKeyID)
+		err = deleteNKey(ctx, req.Storage, Operator, params.NKeyID)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// create operator nkey
-	key, err := getNkey(ctx, req.Storage, "operator", data.Get("nkey_id").(string))
+	key, err := getNkey(ctx, req.Storage, Operator, data.Get("nkey_id").(string))
 	if err != nil {
 		return logical.ErrorResponse("error while accessing nkey storage"), err
 	}
 	if key == nil {
-		key, err = createNkey(ctx, req.Storage, "operator", data.Get("nkey_id").(string))
+		key, err = createNkey(ctx, req.Storage, Operator, data.Get("nkey_id").(string))
 		if err != nil {
 			return nil, err
 		}
@@ -155,13 +155,13 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	}
 	for _, key := range params.TokenClaims.SigningKeys {
 		// get signing key
-		skey, err := getNkey(ctx, req.Storage, "operator", key)
+		skey, err := getNkey(ctx, req.Storage, Operator, key)
 		if err != nil {
 			return logical.ErrorResponse("error while accessing nkey storage"), err
 		}
 		// create signing key if it doesn't exist
 		if skey == nil {
-			_, err = createNkey(ctx, req.Storage, "operator", key)
+			_, err = createNkey(ctx, req.Storage, Operator, key)
 			if err != nil {
 				return nil, err
 			}
@@ -221,7 +221,7 @@ func (b *NatsBackend) pathDeleteOperatorCmd(ctx context.Context, req *logical.Re
 
 	// delete referenced nkey
 	if params != nil {
-		err = deleteNKey(ctx, req.Storage, "operator", params.NKeyID)
+		err = deleteNKey(ctx, req.Storage, Operator, params.NKeyID)
 		if err != nil {
 			return nil, err
 		}

@@ -39,11 +39,11 @@ func pathUserNkey(b *NatsBackend) *framework.Path {
 }
 
 func (b *NatsBackend) pathAddUserNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return b.pathAddNkey(ctx, req, data, "user")
+	return b.pathAddNkey(ctx, req, data, User)
 }
 
 func (b *NatsBackend) pathReadUserNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return b.pathReadNkey(ctx, req, data, "user")
+	return b.pathReadNkey(ctx, req, data, User)
 }
 
 func (b *NatsBackend) pathUserNkeysList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {

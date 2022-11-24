@@ -224,19 +224,19 @@ func (b *NatsBackend) pathAddAccountCmd(ctx context.Context, req *logical.Reques
 
 	// if new nkey, delete old
 	if params.NKeyID != "" && params.NKeyID != data.Get("nkey_id").(string) {
-		err = deleteNKey(ctx, req.Storage, "account", params.NKeyID)
+		err = deleteNKey(ctx, req.Storage, Account, params.NKeyID)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// create account nkey
-	key, err := getNkey(ctx, req.Storage, "account", data.Get("nkey_id").(string))
+	key, err := getNkey(ctx, req.Storage, Account, data.Get("nkey_id").(string))
 	if err != nil {
 		return logical.ErrorResponse("error while accessing nkey storage"), err
 	}
 	if key == nil {
-		key, err = createNkey(ctx, req.Storage, "account", data.Get("nkey_id").(string))
+		key, err = createNkey(ctx, req.Storage, Account, data.Get("nkey_id").(string))
 		if err != nil {
 			return nil, err
 		}

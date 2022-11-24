@@ -11,6 +11,22 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+type Category int
+
+const (
+	Operator Category = iota
+	Account
+	User
+)
+
+var (
+	CategoryMap = map[Category]string{
+		Operator: "operator",
+		Account:  "account",
+		User:     "user",
+	}
+)
+
 // Nkey represens a named NKey keypair.
 type Nkey struct {
 	Name string `json:"name" mapstructure:"name"`
@@ -23,22 +39,22 @@ type Nkey struct {
 // }
 
 // getPrefixByte is a helper function to get the prefix byte for a given category.
-func getPrefixByte(category string) (nkeys.PrefixByte, error) {
+func getPrefixByte(c Category) (nkeys.PrefixByte, error) {
 	switch {
-	case category == "operator":
+	case c == Operator:
 		return nkeys.PrefixByteOperator, nil
-	case category == "account":
+	case c == Account:
 		return nkeys.PrefixByteAccount, nil
-	case category == "user":
+	case c == User:
 		return nkeys.PrefixByteUser, nil
 	default:
-		return 0, fmt.Errorf("unknown nkey category: %s", category)
+		return 0, fmt.Errorf("unknown nkey category")
 	}
 }
 
 // getNkeyPath is a helper function to get the path for a given category and name.
-func getNkeyPath(category string, name string) string {
-	return "nkey/" + category + "/" + name
+func getNkeyPath(c Category, name string) string {
+	return "nkey/" + CategoryMap[c] + "/" + name
 }
 
 // pathNkey extends the Vault API with a `/nkey/<category>`
@@ -81,10 +97,10 @@ func pathNkey(b *NatsBackend) []*framework.Path {
 	}
 }
 
-func (b *NatsBackend) pathReadNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, category string) (*logical.Response, error) {
+func (b *NatsBackend) pathReadNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, c Category) (*logical.Response, error) {
 
 	// receive nkey data structure from storage
-	nkey, err := getNkey(ctx, req.Storage, category, data.Get("name").(string))
+	nkey, err := getNkey(ctx, req.Storage, c, data.Get("name").(string))
 	if err != nil {
 		return nil, err
 	}
@@ -113,25 +129,25 @@ func (b *NatsBackend) pathReadNkey(ctx context.Context, req *logical.Request, da
 	}, nil
 }
 
-func (b *NatsBackend) pathAddNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, category string) (*logical.Response, error) {
+func (b *NatsBackend) pathAddNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, c Category) (*logical.Response, error) {
 	// readout fields
 	name := data.Get("name").(string)
 	seed := data.Get("seed").(string)
 
 	// when no seed is given, generate a new one
 	if seed == "" {
-		_, err := createNkey(ctx, req.Storage, category, name)
+		_, err := createNkey(ctx, req.Storage, c, name)
 		return nil, err
 	}
 
 	// when a key is given, store it
-	err := addNkey(ctx, req.Storage, category, name, seed)
+	err := addNkey(ctx, req.Storage, c, name, seed)
 	return nil, err
 }
 
-func addNkey(ctx context.Context, s logical.Storage, category string, name string, seed string) error {
+func addNkey(ctx context.Context, s logical.Storage, c Category, name string, seed string) error {
 	// get Nkey storage
-	nkey, err := getNkey(ctx, s, category, name)
+	nkey, err := getNkey(ctx, s, c, name)
 	if err != nil {
 		return fmt.Errorf("missing peer")
 	}
@@ -144,17 +160,17 @@ func addNkey(ctx context.Context, s logical.Storage, category string, name strin
 	// save modifications to storage
 	nkey.Name = name
 	nkey.Seed = seed
-	if _, err := storeInStorage(ctx, s, getNkeyPath(category, name), nkey); err != nil {
+	if _, err := storeInStorage(ctx, s, getNkeyPath(c, name), nkey); err != nil {
 		return err
 	}
 	return nil
 }
 
 // createKeyPair creates a new Nkey keypair with name
-func createNkey(ctx context.Context, s logical.Storage, category string, name string) (*Nkey, error) {
+func createNkey(ctx context.Context, s logical.Storage, c Category, name string) (*Nkey, error) {
 
 	// map category to prefix
-	prefix, err := getPrefixByte(category)
+	prefix, err := getPrefixByte(c)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +185,7 @@ func createNkey(ctx context.Context, s logical.Storage, category string, name st
 	nkey := &Nkey{}
 	nkey.Name = name
 	nkey.Seed = seed
-	if _, err := storeInStorage(ctx, s, getNkeyPath(category, name), nkey); err != nil {
+	if _, err := storeInStorage(ctx, s, getNkeyPath(c, name), nkey); err != nil {
 		return nil, err
 	}
 	return nkey, nil
@@ -193,21 +209,17 @@ func createSeed(ctx context.Context, prefix nkeys.PrefixByte) (string, error) {
 }
 
 // getNkey returns the Nkey object for the given name and category
-func getNkey(ctx context.Context, s logical.Storage, category, name string) (*Nkey, error) {
-
-	if category == "" {
-		return nil, fmt.Errorf("missing nkey category name (`operator`,`account`,`user`")
-	}
+func getNkey(ctx context.Context, s logical.Storage, c Category, name string) (*Nkey, error) {
 
 	if name == "" {
 		return nil, fmt.Errorf("missing name")
 	}
 
-	return getFromStorage[Nkey](ctx, s, getNkeyPath(category, name))
+	return getFromStorage[Nkey](ctx, s, getNkeyPath(c, name))
 }
 
-func deleteNKey(ctx context.Context, s logical.Storage, category string, name string) error {
-	return deleteFromStorage(ctx, s, getNkeyPath(category, name))
+func deleteNKey(ctx context.Context, s logical.Storage, c Category, name string) error {
+	return deleteFromStorage(ctx, s, getNkeyPath(c, name))
 }
 
 type NkeyInfo struct {
