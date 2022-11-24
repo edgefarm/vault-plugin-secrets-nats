@@ -4,39 +4,66 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/validate"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 )
 
+const (
+	OperatorNKeyID validate.Key = iota
+	OperatorSigningKeys
+	OperatorStrictSigningKeyUsage
+	OperatorAccountServerUrl
+	OperatorSystemAccount
+)
+
+var (
+	cmdOperatorFieldParams = map[validate.Key]string{
+		OperatorNKeyID:                "nkey_id",
+		OperatorSigningKeys:           "signing_keys",
+		OperatorStrictSigningKeyUsage: "strict_signing_key_usage",
+		OperatorAccountServerUrl:      "account_server_url",
+		OperatorSystemAccount:         "system_account",
+	}
+
+	validPathCmdOperatorFields []string = []string{
+		cmdOperatorFieldParams[OperatorNKeyID],
+		cmdOperatorFieldParams[OperatorSigningKeys],
+		cmdOperatorFieldParams[OperatorStrictSigningKeyUsage],
+		cmdOperatorFieldParams[OperatorAccountServerUrl],
+		cmdOperatorFieldParams[OperatorSystemAccount],
+	}
+)
+
 func pathCmdOperator(b *NatsBackend) *framework.Path {
 	return &framework.Path{
 		Pattern: "cmd/operator",
 		Fields: map[string]*framework.FieldSchema{
-			"nkey_id": {
+			cmdOperatorFieldParams[OperatorNKeyID]: {
 				Type:        framework.TypeString,
 				Description: "Create or use existing NKey with this id.",
 				Required:    false,
 				Default:     "operator",
 			},
-			"signing_keys": {
+			cmdOperatorFieldParams[OperatorSigningKeys]: {
 				Type:        framework.TypeStringSlice,
 				Description: "Slice of other operator NKeys IDs that can be used to sign on behalf of the main operator identity.",
 				Required:    false,
 			},
-			"strict_signing_key_usage": {
+			cmdOperatorFieldParams[OperatorStrictSigningKeyUsage]: {
 				Type:        framework.TypeBool,
 				Description: "Signing of subordinate objects will require signing keys.",
 				Required:    false,
 				Default:     false,
 			},
-			"account_server_url": {
+			cmdOperatorFieldParams[OperatorAccountServerUrl]: {
 				Type:        framework.TypeString,
 				Description: "Account Server URL for pushing jwt's.",
 				Required:    false,
 			},
-			"system_account": {
+			cmdOperatorFieldParams[OperatorSystemAccount]: {
 				Type:        framework.TypeString,
 				Description: "Operator NKeys path of the system account.",
 				Required:    false,
@@ -63,6 +90,11 @@ func pathCmdOperator(b *NatsBackend) *framework.Path {
 }
 
 func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	err := validate.ValidateFields(data, validPathCmdOperatorFields)
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
+	}
+
 	// get Operator storage
 	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
 	if err != nil {
@@ -101,13 +133,16 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 
 	// update params
 	params.Name = "operator"
-	params.NKeyID = data.Get("nkey_id").(string)
-	params.TokenClaims.SigningKeys = data.Get("signing_keys").([]string)
-	params.TokenClaims.StrictSigningKeyUsage = data.Get("strict_signing_key_usage").(bool)
-	params.TokenClaims.AccountServerURL = data.Get("account_server_url").(string)
-	params.TokenClaims.SystemAccount = data.Get("system_account").(string)
+	params.NKeyID = data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string)
+	params.TokenClaims.SigningKeys = data.Get(cmdOperatorFieldParams[OperatorSigningKeys]).([]string)
+	params.TokenClaims.StrictSigningKeyUsage = data.Get(cmdOperatorFieldParams[OperatorStrictSigningKeyUsage]).(bool)
+	params.TokenClaims.AccountServerURL = data.Get(cmdOperatorFieldParams[OperatorAccountServerUrl]).(string)
+	params.TokenClaims.SystemAccount = data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
 	params.TokenClaims.Subject = converted.PublicKey
-	updateOperatorJwt(ctx, req.Storage, params, converted.KeyPair)
+	err = updateOperatorJwt(ctx, req.Storage, params, converted.KeyPair)
+	if err != nil {
+		return nil, err
+	}
 
 	// create siging keys
 	seed, err := converted.KeyPair.Seed() //.StdEncoding.DecodeString(okey.Seed)
@@ -126,7 +161,7 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 		}
 		// create signing key if it doesn't exist
 		if skey == nil {
-			skey, err = createNkey(ctx, req.Storage, "operator", key)
+			_, err = createNkey(ctx, req.Storage, "operator", key)
 			if err != nil {
 				return nil, err
 			}
