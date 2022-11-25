@@ -242,6 +242,21 @@ func (b *NatsBackend) pathAddAccountCmd(ctx context.Context, req *logical.Reques
 		}
 	}
 
+	operatorParams, err := b.getOperatorParams(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	signingKey, err := getNkey(ctx, req.Storage, Operator, operatorParams.NKeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// convert operator key
+	convertedSigningKey, err := convertSeed(signingKey.Seed)
+	if err != nil {
+		return nil, err
+	}
+
 	// convert account key
 	converted, err := convertSeed(key.Seed)
 	if err != nil {
@@ -269,13 +284,10 @@ func (b *NatsBackend) pathAddAccountCmd(ctx context.Context, req *logical.Reques
 	params.TokenClaims.Limits.MemoryMaxStreamBytes = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMemoryMaxStreamBytes]).(int))
 	params.TokenClaims.Limits.DiskMaxStreamBytes = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamDiskMaxStreamBytes]).(int))
 	params.TokenClaims.Limits.MaxBytesRequired = data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMaxBytesRequired]).(bool)
-
 	params.TokenClaims.Subject = converted.PublicKey
 	params.TokenClaims.Name = accountName
-	params.TokenClaims.Version = 2
-	params.TokenClaims.Type = "account"
 
-	err = updateAccountJwt(ctx, req.Storage, params, converted.KeyPair, accountName)
+	err = updateAccountJwt(ctx, req.Storage, params, convertedSigningKey.KeyPair, accountName)
 	if err != nil {
 		return nil, err
 	}
@@ -322,4 +334,12 @@ func updateAccountJwt(ctx context.Context, s logical.Storage, p *Parameters[jwt.
 	}
 
 	return nil
+}
+
+func (b *NatsBackend) getAccountParams(ctx context.Context, req *logical.Request) (*Parameters[jwt.AccountClaims], error) {
+	params, err := getFromStorage[Parameters[jwt.AccountClaims]](ctx, req.Storage, operatorCmdPath())
+	if err != nil {
+		return nil, fmt.Errorf("missing account")
+	}
+	return params, nil
 }

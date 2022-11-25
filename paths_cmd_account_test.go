@@ -15,7 +15,6 @@ func TestCmdAccount(t *testing.T) {
 	b, reqStorage := getTestBackend(t)
 
 	t.Run("Test account create nkey and jwt command", func(t *testing.T) {
-
 		// create a new operator jwt/key
 		var err error
 		_, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -58,10 +57,10 @@ func TestCmdAccount(t *testing.T) {
 			Storage: reqStorage,
 		})
 		assert.NoError(t, err)
-		// read operat params
-		_, err = b.HandleRequest(context.Background(), &logical.Request{
+
+		operatorNKeyResp, err := b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ReadOperation,
-			Path:      "cmd/operator",
+			Path:      "nkey/operator/operator1",
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
@@ -87,6 +86,7 @@ func TestCmdAccount(t *testing.T) {
 		assert.Equal(t, "everything_set", accountClaims.Name)
 		assert.Equal(t, accountPubKey, accountClaims.Subject)
 		assert.Equal(t, 2, accountClaims.Version)
+		assert.Equal(t, operatorNKeyResp.Data["public_key"].(string), accountClaims.Issuer)
 		assert.Equal(t, int64(10), accountClaims.Limits.Subs)
 		assert.Equal(t, int64(100), accountClaims.Limits.NatsLimits.Data)
 		assert.Equal(t, int64(200), accountClaims.Limits.NatsLimits.Payload)
@@ -103,7 +103,6 @@ func TestCmdAccount(t *testing.T) {
 		assert.Equal(t, int64(1200), accountClaims.Limits.JetStreamLimits.MemoryMaxStreamBytes)
 		assert.Equal(t, int64(1300), accountClaims.Limits.JetStreamLimits.DiskMaxStreamBytes)
 		assert.Equal(t, true, accountClaims.Limits.JetStreamLimits.MaxBytesRequired)
-
 		// create account, test setting no fields
 		_, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.CreateOperation,
@@ -136,6 +135,7 @@ func TestCmdAccount(t *testing.T) {
 		assert.Equal(t, "default_values", accountClaims.Name)
 		assert.Equal(t, accountPubKey, accountClaims.Subject)
 		assert.Equal(t, 2, accountClaims.Version)
+		assert.Equal(t, operatorNKeyResp.Data["public_key"].(string), accountClaims.Issuer)
 		assert.Equal(t, int64(-1), accountClaims.Limits.Subs)
 		assert.Equal(t, int64(-1), accountClaims.Limits.NatsLimits.Data)
 		assert.Equal(t, int64(-1), accountClaims.Limits.NatsLimits.Payload)

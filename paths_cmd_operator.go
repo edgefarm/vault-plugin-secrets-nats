@@ -257,3 +257,11 @@ func updateOperatorJwt(ctx context.Context, s logical.Storage, p *Parameters[jwt
 
 	return nil
 }
+
+func (b *NatsBackend) getOperatorParams(ctx context.Context, req *logical.Request) (*Parameters[jwt.OperatorClaims], error) {
+	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
+	if err != nil {
+		return nil, fmt.Errorf("missing operator")
+	}
+	return params, nil
+}
