@@ -14,7 +14,7 @@ import (
 func TestCmdAccount(t *testing.T) {
 	b, reqStorage := getTestBackend(t)
 
-	t.Run("Test operator create nkey and jwt command", func(t *testing.T) {
+	t.Run("Test account create nkey and jwt command", func(t *testing.T) {
 
 		// create a new operator jwt/key
 		var err error
@@ -35,9 +35,9 @@ func TestCmdAccount(t *testing.T) {
 		// create account, test setting all fields
 		_, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.CreateOperation,
-			Path:      "cmd/operator/account/account1",
+			Path:      "cmd/operator/account/everything_set",
 			Data: map[string]interface{}{
-				"nkey_id":                                  "account1",
+				"nkey_id":                                  "everything_set",
 				"limits_nats_subs":                         "10",
 				"limits_nats_data":                         "100",
 				"limits_nats_payload":                      "200",
@@ -69,7 +69,7 @@ func TestCmdAccount(t *testing.T) {
 		// read account params
 		resp, err := b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ReadOperation,
-			Path:      "nkey/account/account1",
+			Path:      "nkey/account/everything_set",
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
@@ -77,14 +77,14 @@ func TestCmdAccount(t *testing.T) {
 
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ReadOperation,
-			Path:      "jwt/operator/account/account1",
+			Path:      "jwt/operator/account/everything_set",
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
 		claims, err := claim.Decode(resp.Data["jwt"].(string))
 		assert.NoError(t, err)
 		accountClaims := claims.(*claim.AccountClaims)
-		assert.Equal(t, "account1", accountClaims.Name)
+		assert.Equal(t, "everything_set", accountClaims.Name)
 		assert.Equal(t, accountPubKey, accountClaims.Subject)
 		assert.Equal(t, 2, accountClaims.Version)
 		assert.Equal(t, int64(10), accountClaims.Limits.Subs)
@@ -103,5 +103,54 @@ func TestCmdAccount(t *testing.T) {
 		assert.Equal(t, int64(1200), accountClaims.Limits.JetStreamLimits.MemoryMaxStreamBytes)
 		assert.Equal(t, int64(1300), accountClaims.Limits.JetStreamLimits.DiskMaxStreamBytes)
 		assert.Equal(t, true, accountClaims.Limits.JetStreamLimits.MaxBytesRequired)
+
+		// create account, test setting no fields
+		_, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "cmd/operator/account/default_values",
+			Data: map[string]interface{}{
+				"nkey_id": "default_values",
+			},
+			Storage: reqStorage,
+		})
+		assert.NoError(t, err)
+
+		// read account params
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "nkey/account/default_values",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		accountPubKey = resp.Data["public_key"].(string)
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "jwt/operator/account/default_values",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		claims, err = claim.Decode(resp.Data["jwt"].(string))
+		assert.NoError(t, err)
+		accountClaims = claims.(*claim.AccountClaims)
+		assert.Equal(t, "default_values", accountClaims.Name)
+		assert.Equal(t, accountPubKey, accountClaims.Subject)
+		assert.Equal(t, 2, accountClaims.Version)
+		assert.Equal(t, int64(-1), accountClaims.Limits.Subs)
+		assert.Equal(t, int64(-1), accountClaims.Limits.NatsLimits.Data)
+		assert.Equal(t, int64(-1), accountClaims.Limits.NatsLimits.Payload)
+		assert.Equal(t, int64(-1), accountClaims.Limits.AccountLimits.Imports)
+		assert.Equal(t, int64(-1), accountClaims.Limits.AccountLimits.Exports)
+		assert.Equal(t, true, accountClaims.Limits.AccountLimits.WildcardExports)
+		assert.Equal(t, int64(-1), accountClaims.Limits.AccountLimits.Conn)
+		assert.Equal(t, int64(-1), accountClaims.Limits.AccountLimits.LeafNodeConn)
+		assert.Equal(t, int64(-1), accountClaims.Limits.JetStreamLimits.MemoryStorage)
+		assert.Equal(t, int64(-1), accountClaims.Limits.JetStreamLimits.DiskStorage)
+		assert.Equal(t, int64(-1), accountClaims.Limits.JetStreamLimits.Streams)
+		assert.Equal(t, int64(-1), accountClaims.Limits.JetStreamLimits.Consumer)
+		assert.Equal(t, int64(-1), accountClaims.Limits.JetStreamLimits.MaxAckPending)
+		assert.Equal(t, int64(0), accountClaims.Limits.JetStreamLimits.MemoryMaxStreamBytes)
+		assert.Equal(t, int64(0), accountClaims.Limits.JetStreamLimits.DiskMaxStreamBytes)
+		assert.Equal(t, false, accountClaims.Limits.JetStreamLimits.MaxBytesRequired)
 	})
 }
