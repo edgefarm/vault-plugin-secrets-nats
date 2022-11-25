@@ -2,6 +2,7 @@ package natsbackend
 
 import (
 	"github.com/hashicorp/vault/sdk/framework"
+	"github.com/hashicorp/vault/sdk/logical"
 )
 
 type Parameters[T any] struct {
@@ -30,5 +31,25 @@ func pathCmd(b *NatsBackend) []*framework.Path {
 		pathCmdOperator(b),
 		pathCmdAccount(b),
 		pathCmdUser(b),
+		{
+			Pattern: "cmd/operator/account/?$",
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.ListOperation: &framework.PathOperation{
+					Callback: b.pathCmdAccountList,
+				},
+			},
+			HelpSynopsis:    "pathRoleListHelpSynopsis",
+			HelpDescription: "pathRoleListHelpDescription",
+		},
+		{
+			Pattern: "cmd/operator/account/" + framework.GenericNameRegex("account_name") + "/user/?$",
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.ListOperation: &framework.PathOperation{
+					Callback: b.pathCmdUserList,
+				},
+			},
+			HelpSynopsis:    "pathRoleListHelpSynopsis",
+			HelpDescription: "pathRoleListHelpDescription",
+		},
 	}
 }

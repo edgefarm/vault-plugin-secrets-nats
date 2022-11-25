@@ -27,6 +27,7 @@ func TestCmdAccount(t *testing.T) {
 				"account_server_url":       "http://localhost:9090",
 				"system_account":           "sys",
 			},
+
 			Storage: reqStorage,
 		})
 		assert.NoError(t, err)

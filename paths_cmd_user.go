@@ -105,3 +105,13 @@ func (b *NatsBackend) pathDeleteUserCmd(ctx context.Context, req *logical.Reques
 	}
 	return nil, nil
 }
+
+func (b *NatsBackend) pathCmdUserList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	accountName := d.Get("account_name").(string)
+	entries, err := req.Storage.List(ctx, "cmd/operator/account/"+accountName+"/user")
+	if err != nil {
+		return nil, err
+	}
+
+	return logical.ListResponse(entries), nil
+}

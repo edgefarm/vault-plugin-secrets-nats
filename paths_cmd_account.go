@@ -343,3 +343,12 @@ func (b *NatsBackend) getAccountParams(ctx context.Context, req *logical.Request
 	}
 	return params, nil
 }
+
+func (b *NatsBackend) pathCmdAccountList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
+	entries, err := req.Storage.List(ctx, "cmd/operator/account")
+	if err != nil {
+		return nil, err
+	}
+
+	return logical.ListResponse(entries), nil
+}

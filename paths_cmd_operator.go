@@ -65,7 +65,7 @@ func pathCmdOperator(b *NatsBackend) *framework.Path {
 			},
 			cmdOperatorFieldParams[OperatorSystemAccount]: {
 				Type:        framework.TypeString,
-				Description: "Operator NKeys path of the system account.",
+				Description: "Create system account if not exists.",
 				Required:    false,
 				Default:     "SYS",
 			},
@@ -113,6 +113,14 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 		}
 	}
 
+	//
+	// if sys account nkey exists?
+	// Y: -> get nkey
+	// N: -> create nkey
+	// if
+
+	//
+
 	// create operator nkey
 	key, err := getNkey(ctx, req.Storage, Operator, data.Get("nkey_id").(string))
 	if err != nil {
@@ -124,9 +132,31 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 			return nil, err
 		}
 	}
+	// TODO add jwt for sys account
 
 	// convert operator key
 	converted, err := convertSeed(key.Seed)
+	if err != nil {
+		return nil, err
+	}
+
+	systemAccountNKeyID := data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
+
+	// check system account
+	sa, err := getNkey(ctx, req.Storage, Account, systemAccountNKeyID)
+	if err != nil {
+		return logical.ErrorResponse("error while accessing nkey storage"), err
+	}
+
+	// create system account
+	if sa == nil {
+		sa, err = createNkey(ctx, req.Storage, Account, systemAccountNKeyID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// convert operator key
+	convertedSysAccountKey, err := convertSeed(sa.Seed)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +167,7 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	params.TokenClaims.SigningKeys = data.Get(cmdOperatorFieldParams[OperatorSigningKeys]).([]string)
 	params.TokenClaims.StrictSigningKeyUsage = data.Get(cmdOperatorFieldParams[OperatorStrictSigningKeyUsage]).(bool)
 	params.TokenClaims.AccountServerURL = data.Get(cmdOperatorFieldParams[OperatorAccountServerUrl]).(string)
-	params.TokenClaims.SystemAccount = data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
+	params.TokenClaims.SystemAccount = convertedSysAccountKey.PublicKey
 	params.TokenClaims.Subject = converted.PublicKey
 	err = updateOperatorJwt(ctx, req.Storage, params, converted.KeyPair)
 	if err != nil {
@@ -173,37 +203,6 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	if err != nil {
 		return nil, err
 	}
-
-	// check system account
-	// if operator.TokenClaims.SystemAccount != "" {
-	// 	// get system account
-	// 	sa, err := getNkey(ctx, req.Storage, "account", operator.TokenClaims.SystemAccount)
-	// 	if err != nil {
-	// 		return logical.ErrorResponse("error while accessing nkey storage"), err
-	// 	}
-
-	// 	// create system account
-	// 	if sa == nil {
-	// 		sa, err = createNkey(ctx, req.Storage, "account", operator.TokenClaims.SystemAccount)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 	}
-
-	// 	// get system account user
-	// 	sau, err := getNkey(ctx, req.Storage, "user", operator.TokenClaims.SystemAccount)
-	// 	if err != nil {
-	// 		return logical.ErrorResponse("error while accessing nkey storage"), err
-	// 	}
-
-	// 	// create system account user
-	// 	if sau == nil {
-	// 		sau, err = createNkey(ctx, req.Storage, "user", operator.TokenClaims.SystemAccount)
-	// 		if err != nil {
-	// 			return nil, err
-	// 		}
-	// 	}
-	// }
 
 	return nil, nil
 }

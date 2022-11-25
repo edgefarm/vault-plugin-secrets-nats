@@ -12,7 +12,7 @@ func pathOperatorNkey(b *NatsBackend) *framework.Path {
 		Pattern: "nkey/operator/" + framework.GenericNameRegex("name") + "$",
 		Fields: map[string]*framework.FieldSchema{
 			"name": {
-				Type:        framework.TypeLowerCaseString,
+				Type:        framework.TypeString,
 				Description: "Name of the Nkey.",
 				Required:    false,
 			},
