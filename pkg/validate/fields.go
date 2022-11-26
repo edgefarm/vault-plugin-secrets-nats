@@ -3,15 +3,13 @@ package validate
 import (
 	"fmt"
 	"strings"
-
-	"github.com/hashicorp/vault/sdk/framework"
 )
 
 type Key uint32
 
-func ValidateFields(data *framework.FieldData, valid []string) error {
+func ValidateFields(data map[string]interface{}, valid []string) error {
 	mapKeys := []string{}
-	for key := range data.Raw {
+	for key := range data {
 		mapKeys = append(mapKeys, key)
 	}
 

@@ -17,11 +17,11 @@ func operatorCmdPath() string {
 }
 
 func accountCmdPath(account string) string {
-	return "cmd/operator/" + account
+	return "cmd/operator/account/" + account
 }
 
 func userCmdPath(account, user string) string {
-	return "cmd/operator/" + account + "/" + user
+	return "cmd/operator/account/" + account + "/user/" + user
 }
 
 // pathCmd extends the Vault API with a `/cmd/<category>`

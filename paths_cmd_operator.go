@@ -90,7 +90,7 @@ func pathCmdOperator(b *NatsBackend) *framework.Path {
 }
 
 func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	err := validate.ValidateFields(data, validPathCmdOperatorFields)
+	err := validate.ValidateFields(data.Raw, validPathCmdOperatorFields)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
@@ -113,14 +113,6 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 		}
 	}
 
-	//
-	// if sys account nkey exists?
-	// Y: -> get nkey
-	// N: -> create nkey
-	// if
-
-	//
-
 	// create operator nkey
 	key, err := getNkey(ctx, req.Storage, Operator, data.Get("nkey_id").(string))
 	if err != nil {
@@ -132,7 +124,6 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 			return nil, err
 		}
 	}
-	// TODO add jwt for sys account
 
 	// convert operator key
 	converted, err := convertSeed(key.Seed)
@@ -140,26 +131,26 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 		return nil, err
 	}
 
-	systemAccountNKeyID := data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
+	// systemAccountNKeyID := data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
 
-	// check system account
-	sa, err := getNkey(ctx, req.Storage, Account, systemAccountNKeyID)
-	if err != nil {
-		return logical.ErrorResponse("error while accessing nkey storage"), err
-	}
+	// // check system account
+	// sa, err := getNkey(ctx, req.Storage, Account, systemAccountNKeyID)
+	// if err != nil {
+	// 	return logical.ErrorResponse("error while accessing nkey storage"), err
+	// }
 
-	// create system account
-	if sa == nil {
-		sa, err = createNkey(ctx, req.Storage, Account, systemAccountNKeyID)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// convert operator key
-	convertedSysAccountKey, err := convertSeed(sa.Seed)
-	if err != nil {
-		return nil, err
-	}
+	// // create system account
+	// if sa == nil {
+	// 	sa, err = createNkey(ctx, req.Storage, Account, systemAccountNKeyID)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// }
+	// // convert operator key
+	// convertedSysAccountKey, err := convertSeed(sa.Seed)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	// update params
 	params.Name = "operator"
@@ -167,7 +158,7 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	params.TokenClaims.SigningKeys = data.Get(cmdOperatorFieldParams[OperatorSigningKeys]).([]string)
 	params.TokenClaims.StrictSigningKeyUsage = data.Get(cmdOperatorFieldParams[OperatorStrictSigningKeyUsage]).(bool)
 	params.TokenClaims.AccountServerURL = data.Get(cmdOperatorFieldParams[OperatorAccountServerUrl]).(string)
-	params.TokenClaims.SystemAccount = convertedSysAccountKey.PublicKey
+	params.TokenClaims.SystemAccount = data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
 	params.TokenClaims.Subject = converted.PublicKey
 	err = updateOperatorJwt(ctx, req.Storage, params, converted.KeyPair)
 	if err != nil {
@@ -196,6 +187,41 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 				return nil, err
 			}
 		}
+	}
+
+	systemAccountName := data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
+	err = b.AddAccountCmd(ctx, req.Storage, &AccountCmdConfig{
+		Name:        systemAccountName,
+		NKeyID:      systemAccountName,
+		AccountPath: accountCmdPath(systemAccountName),
+		OperatorLimits: jwt.OperatorLimits{
+			NatsLimits: jwt.NatsLimits{
+				Subs:    -1,
+				Data:    -1,
+				Payload: -1,
+			},
+			AccountLimits: jwt.AccountLimits{
+				Imports:         -1,
+				Exports:         -1,
+				WildcardExports: true,
+				DisallowBearer:  false,
+				Conn:            -1,
+				LeafNodeConn:    -1,
+			},
+			JetStreamLimits: jwt.JetStreamLimits{
+				MemoryStorage:        -1,
+				DiskStorage:          -1,
+				Streams:              -1,
+				Consumer:             -1,
+				MaxAckPending:        -1,
+				MemoryMaxStreamBytes: 0,
+				DiskMaxStreamBytes:   0,
+				MaxBytesRequired:     false,
+			},
+		},
+	}, key)
+	if err != nil {
+		return nil, err
 	}
 
 	// store operator parameters
@@ -257,8 +283,8 @@ func updateOperatorJwt(ctx context.Context, s logical.Storage, p *Parameters[jwt
 	return nil
 }
 
-func (b *NatsBackend) getOperatorParams(ctx context.Context, req *logical.Request) (*Parameters[jwt.OperatorClaims], error) {
-	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
+func (b *NatsBackend) getOperatorParams(ctx context.Context, s logical.Storage) (*Parameters[jwt.OperatorClaims], error) {
+	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, s, operatorCmdPath())
 	if err != nil {
 		return nil, fmt.Errorf("missing operator")
 	}

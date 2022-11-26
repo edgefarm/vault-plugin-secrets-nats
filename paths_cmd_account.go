@@ -11,6 +11,13 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
+type AccountCmdConfig struct {
+	Name        string
+	NKeyID      string
+	AccountPath string
+	jwt.OperatorLimits
+}
+
 const (
 	AccountName validate.Key = iota
 	AccountNKeyID
@@ -207,42 +214,43 @@ func pathCmdAccount(b *NatsBackend) *framework.Path {
 }
 
 func (b *NatsBackend) pathAddAccountCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	err := validate.ValidateFields(data, validPathCmdAccountFields)
+	err := validate.ValidateFields(data.Raw, validPathCmdAccountFields)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
-	accountName := data.Get("name").(string)
-	// get account storage
-	params, err := getFromStorage[Parameters[jwt.AccountClaims]](ctx, req.Storage, accountCmdPath(accountName))
-	if err != nil {
-		return logical.ErrorResponse("missing account"), err
-	}
-	// no storage exists, create new
-	if params == nil {
-		params = &Parameters[jwt.AccountClaims]{}
+	name := data.Get(cmdAccountFieldParams[AccountName]).(string)
+	c := &AccountCmdConfig{
+		Name:        name,
+		NKeyID:      data.Get(cmdAccountFieldParams[AccountNKeyID]).(string),
+		AccountPath: accountCmdPath(name),
+		OperatorLimits: jwt.OperatorLimits{
+			NatsLimits: jwt.NatsLimits{
+				Subs:    int64(data.Get(cmdAccountFieldParams[AccountLimitsNatsSubs]).(int)),
+				Data:    int64(data.Get(cmdAccountFieldParams[AccountLimitsNatsData]).(int)),
+				Payload: int64(data.Get(cmdAccountFieldParams[AccountLimitsNatsPayload]).(int)),
+			},
+			AccountLimits: jwt.AccountLimits{
+				Conn:            int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountConn]).(int)),
+				LeafNodeConn:    int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountLeafNodeConn]).(int)),
+				Imports:         int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountImports]).(int)),
+				Exports:         int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountExports]).(int)),
+				WildcardExports: data.Get(cmdAccountFieldParams[AccountLimitsAccountWildcardExports]).(bool),
+				DisallowBearer:  false,
+			},
+			JetStreamLimits: jwt.JetStreamLimits{
+				MemoryStorage:        int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMemStorage]).(int)),
+				DiskStorage:          int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamDiskStorage]).(int)),
+				Streams:              int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamStreams]).(int)),
+				Consumer:             int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamConsumer]).(int)),
+				MaxAckPending:        int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMaxAckPending]).(int)),
+				MemoryMaxStreamBytes: int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMemoryMaxStreamBytes]).(int)),
+				DiskMaxStreamBytes:   int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamDiskMaxStreamBytes]).(int)),
+				MaxBytesRequired:     data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMaxBytesRequired]).(bool),
+			},
+		},
 	}
 
-	// if new nkey, delete old
-	if params.NKeyID != "" && params.NKeyID != data.Get("nkey_id").(string) {
-		err = deleteNKey(ctx, req.Storage, Account, params.NKeyID)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// create account nkey
-	key, err := getNkey(ctx, req.Storage, Account, data.Get("nkey_id").(string))
-	if err != nil {
-		return logical.ErrorResponse("error while accessing nkey storage"), err
-	}
-	if key == nil {
-		key, err = createNkey(ctx, req.Storage, Account, data.Get("nkey_id").(string))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	operatorParams, err := b.getOperatorParams(ctx, req)
+	operatorParams, err := b.getOperatorParams(ctx, req.Storage)
 	if err != nil {
 		return nil, err
 	}
@@ -251,54 +259,75 @@ func (b *NatsBackend) pathAddAccountCmd(ctx context.Context, req *logical.Reques
 		return nil, err
 	}
 
+	err = b.AddAccountCmd(ctx, req.Storage, c, signingKey)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+}
+
+func (b *NatsBackend) AddAccountCmd(ctx context.Context, s logical.Storage, c *AccountCmdConfig, signingKey *Nkey) error {
+	// get account storage
+	params, err := getFromStorage[Parameters[jwt.AccountClaims]](ctx, s, c.AccountPath)
+	if err != nil {
+		return fmt.Errorf("missing account")
+	}
+	// no storage exists, create new
+	if params == nil {
+		params = &Parameters[jwt.AccountClaims]{}
+	}
+
+	// if new nkey, delete old
+	if params.NKeyID != "" && params.NKeyID != c.NKeyID {
+		err = deleteNKey(ctx, s, Account, params.NKeyID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// create account nkey
+	key, err := getNkey(ctx, s, Account, c.NKeyID)
+	if err != nil {
+		return fmt.Errorf("error while accessing nkey storage")
+	}
+	if key == nil {
+		key, err = createNkey(ctx, s, Account, c.NKeyID)
+		if err != nil {
+			return err
+		}
+	}
+
 	// convert operator key
 	convertedSigningKey, err := convertSeed(signingKey.Seed)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// convert account key
 	converted, err := convertSeed(key.Seed)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// update params
-	params.Name = accountName
-	params.NKeyID = data.Get(cmdAccountFieldParams[AccountNKeyID]).(string)
-	params.TokenClaims.Limits.Subs = int64(data.Get(cmdAccountFieldParams[AccountLimitsNatsSubs]).(int))
-	params.TokenClaims.Limits.Data = int64(data.Get(cmdAccountFieldParams[AccountLimitsNatsData]).(int))
-	params.TokenClaims.Limits.Payload = int64(data.Get(cmdAccountFieldParams[AccountLimitsNatsPayload]).(int))
-
-	params.TokenClaims.Limits.Conn = int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountConn]).(int))
-	params.TokenClaims.Limits.LeafNodeConn = int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountLeafNodeConn]).(int))
-	params.TokenClaims.Limits.Imports = int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountImports]).(int))
-	params.TokenClaims.Limits.Exports = int64(data.Get(cmdAccountFieldParams[AccountLimitsAccountExports]).(int))
-	params.TokenClaims.Limits.WildcardExports = data.Get(cmdAccountFieldParams[AccountLimitsAccountWildcardExports]).(bool)
-
-	params.TokenClaims.Limits.MemoryStorage = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMemStorage]).(int))
-	params.TokenClaims.Limits.DiskStorage = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamDiskStorage]).(int))
-	params.TokenClaims.Limits.Streams = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamStreams]).(int))
-	params.TokenClaims.Limits.Consumer = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamConsumer]).(int))
-	params.TokenClaims.Limits.MaxAckPending = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMaxAckPending]).(int))
-	params.TokenClaims.Limits.MemoryMaxStreamBytes = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMemoryMaxStreamBytes]).(int))
-	params.TokenClaims.Limits.DiskMaxStreamBytes = int64(data.Get(cmdAccountFieldParams[AccountLimitsJetstreamDiskMaxStreamBytes]).(int))
-	params.TokenClaims.Limits.MaxBytesRequired = data.Get(cmdAccountFieldParams[AccountLimitsJetstreamMaxBytesRequired]).(bool)
+	params.Name = c.Name
+	params.NKeyID = c.NKeyID
+	params.TokenClaims.Limits = c.OperatorLimits
 	params.TokenClaims.Subject = converted.PublicKey
-	params.TokenClaims.Name = accountName
+	params.TokenClaims.Name = c.Name
 
-	err = updateAccountJwt(ctx, req.Storage, params, convertedSigningKey.KeyPair, accountName)
+	err = updateAccountJwt(ctx, s, params, convertedSigningKey.KeyPair, c.Name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// store operator parameters
-	_, err = storeInStorage(ctx, req.Storage, accountCmdPath(accountName), params)
+	_, err = storeInStorage(ctx, s, c.AccountPath, params)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return nil, nil
+	return nil
 }
 
 func (b *NatsBackend) pathReadAccountCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
@@ -345,7 +374,7 @@ func (b *NatsBackend) getAccountParams(ctx context.Context, req *logical.Request
 }
 
 func (b *NatsBackend) pathCmdAccountList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	entries, err := req.Storage.List(ctx, "cmd/operator/account")
+	entries, err := req.Storage.List(ctx, req.Path)
 	if err != nil {
 		return nil, err
 	}

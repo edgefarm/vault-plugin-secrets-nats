@@ -78,6 +78,9 @@ func pathJWT(b *NatsBackend) []*framework.Path {
 				logical.ReadOperation: &framework.PathOperation{
 					Callback: b.pathReadAccountJWT,
 				},
+				logical.ListOperation: &framework.PathOperation{
+					Callback: b.pathListAccountJWT,
+				},
 			},
 			HelpSynopsis:    `Manages account JWT's.`,
 			HelpDescription: ``,
@@ -110,6 +113,9 @@ func pathJWT(b *NatsBackend) []*framework.Path {
 				},
 				logical.ReadOperation: &framework.PathOperation{
 					Callback: b.pathReadUserJWT,
+				},
+				logical.ListOperation: &framework.PathOperation{
+					Callback: b.pathListUserJWT,
 				},
 			},
 			HelpSynopsis:    `Manages user JWT's.`,
@@ -196,6 +202,15 @@ func (b *NatsBackend) pathReadAccountJWT(ctx context.Context, req *logical.Reque
 	return readOperation[JwtToken](ctx, req.Storage, accountJwtPath(name))
 }
 
+func (b *NatsBackend) pathListAccountJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	entries, err := req.Storage.List(ctx, "jwt/operator/account/")
+	if err != nil {
+		return nil, err
+	}
+
+	return logical.ListResponse(entries), nil
+}
+
 func (b *NatsBackend) pathReadUserJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	var account string
 	if accountParam, ok := data.GetOk("account_name"); ok {
@@ -212,6 +227,22 @@ func (b *NatsBackend) pathReadUserJWT(ctx context.Context, req *logical.Request,
 	}
 
 	return readOperation[JwtToken](ctx, req.Storage, userJwtPath(account, name))
+}
+
+func (b *NatsBackend) pathListUserJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	var account string
+	if accountParam, ok := data.GetOk("account_name"); ok {
+		account = accountParam.(string)
+	} else if !ok {
+		return nil, fmt.Errorf("missing account name")
+	}
+
+	entries, err := req.Storage.List(ctx, "jwt/operator/account/"+account+"/user/")
+	if err != nil {
+		return nil, err
+	}
+
+	return logical.ListResponse(entries), nil
 }
 
 func addOperatorJWT(ctx context.Context, s logical.Storage, token string) error {

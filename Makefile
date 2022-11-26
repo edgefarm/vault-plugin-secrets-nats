@@ -29,4 +29,7 @@ clean:
 fmt:
 	go fmt $$(go list ./...)
 
-.PHONY: build clean fmt start enable
+test:
+	go test ./...
+
+.PHONY: build clean fmt start enable test
