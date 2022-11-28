@@ -32,6 +32,9 @@ func pathAccountNkey(b *NatsBackend) *framework.Path {
 			logical.ReadOperation: &framework.PathOperation{
 				Callback: b.pathReadAccountNkey,
 			},
+			logical.DeleteOperation: &framework.PathOperation{
+				Callback: b.pathDeleteAccountNkey,
+			},
 		},
 		HelpSynopsis:    `Manages account Nkey keypairs.`,
 		HelpDescription: `On Create or Update: If no account Nkey keypair is passed, a corresponding Nkey is generated.`,
@@ -53,4 +56,8 @@ func (b *NatsBackend) pathAccountNkeysList(ctx context.Context, req *logical.Req
 	}
 
 	return logical.ListResponse(entries), nil
+}
+
+func (b *NatsBackend) pathDeleteAccountNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	return b.pathDeleteNkey(ctx, req, data, Account)
 }

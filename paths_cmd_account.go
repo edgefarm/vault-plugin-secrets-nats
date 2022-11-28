@@ -21,6 +21,7 @@ type AccountCmdConfig struct {
 const (
 	AccountName validate.Key = iota
 	AccountNKeyID
+	AccountSigningKeyID
 	AccountLimitsNatsSubs
 	AccountLimitsAccountConn
 	AccountLimitsAccountLeafNodeConn
@@ -43,6 +44,7 @@ var (
 	cmdAccountFieldParams = map[validate.Key]string{
 		AccountName:                                "name",
 		AccountNKeyID:                              "nkey_id",
+		AccountSigningKeyID:                        "signingKeyID",
 		AccountLimitsNatsSubs:                      "limits_nats_subs",
 		AccountLimitsNatsData:                      "limits_nats_data",
 		AccountLimitsNatsPayload:                   "limits_nats_payload",
@@ -64,6 +66,7 @@ var (
 	validPathCmdAccountFields []string = []string{
 		cmdAccountFieldParams[AccountName],
 		cmdAccountFieldParams[AccountNKeyID],
+		cmdAccountFieldParams[AccountSigningKeyID],
 		cmdAccountFieldParams[AccountLimitsNatsSubs],
 		cmdAccountFieldParams[AccountLimitsAccountConn],
 		cmdAccountFieldParams[AccountLimitsAccountLeafNodeConn],
@@ -95,6 +98,11 @@ func pathCmdAccount(b *NatsBackend) *framework.Path {
 			cmdAccountFieldParams[AccountNKeyID]: {
 				Type:        framework.TypeString,
 				Description: "Create or use existing NKey with this id.",
+				Required:    false,
+			},
+			cmdAccountFieldParams[AccountSigningKeyID]: {
+				Type:        framework.TypeString,
+				Description: "Explicitly specified operator signing key to sign the account.",
 				Required:    false,
 			},
 			cmdAccountFieldParams[AccountLimitsNatsSubs]: {
@@ -250,15 +258,23 @@ func (b *NatsBackend) pathAddAccountCmd(ctx context.Context, req *logical.Reques
 		},
 	}
 
-	operatorParams, err := b.getOperatorParams(ctx, req.Storage)
-	if err != nil {
-		return nil, err
-	}
-	signingKey, err := getNkey(ctx, req.Storage, Operator, operatorParams.NKeyID)
-	if err != nil {
-		return nil, err
+	// Use explicit nkey id if provided, otherwise use operator nkey id
+	var signingKeyId string
+	paramSigningKey := data.Get(cmdAccountFieldParams[AccountSigningKeyID]).(string)
+	if paramSigningKey != "" {
+		signingKeyId = paramSigningKey
+	} else {
+		operatorParams, err := b.getOperatorParams(ctx, req.Storage)
+		if err != nil {
+			return nil, err
+		}
+		signingKeyId = operatorParams.NKeyID
 	}
 
+	signingKey, err := getNkey(ctx, req.Storage, Operator, signingKeyId)
+	if err != nil {
+		return nil, err
+	}
 	err = b.AddAccountCmd(ctx, req.Storage, c, signingKey)
 	if err != nil {
 		return nil, err

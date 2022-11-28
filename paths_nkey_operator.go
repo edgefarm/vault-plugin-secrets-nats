@@ -32,6 +32,9 @@ func pathOperatorNkey(b *NatsBackend) *framework.Path {
 			logical.ReadOperation: &framework.PathOperation{
 				Callback: b.pathReadOperatorNkey,
 			},
+			logical.DeleteOperation: &framework.PathOperation{
+				Callback: b.pathOperatorNkeysDelete,
+			},
 		},
 		HelpSynopsis:    `Manages operator Nkey keypairs.`,
 		HelpDescription: `On Create or Update: If no operator Nkey keypair is passed, a corresponding Nkey is generated.`,
@@ -53,4 +56,8 @@ func (b *NatsBackend) pathOperatorNkeysList(ctx context.Context, req *logical.Re
 	}
 
 	return logical.ListResponse(entries), nil
+}
+
+func (b *NatsBackend) pathOperatorNkeysDelete(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	return b.pathDeleteNkey(ctx, req, data, Operator)
 }

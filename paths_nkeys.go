@@ -145,6 +145,15 @@ func (b *NatsBackend) pathAddNkey(ctx context.Context, req *logical.Request, dat
 	return nil, err
 }
 
+func (b *NatsBackend) pathDeleteNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, c Category) (*logical.Response, error) {
+	// readout fields
+	name := data.Get("name").(string)
+
+	// when a key is given, store it
+	err := deleteNKey(ctx, req.Storage, c, name)
+	return nil, err
+}
+
 func addNkey(ctx context.Context, s logical.Storage, c Category, name string, seed string) error {
 	// get Nkey storage
 	nkey, err := getNkey(ctx, s, c, name)

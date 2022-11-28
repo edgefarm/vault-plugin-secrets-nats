@@ -3,6 +3,7 @@ package natsbackend
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/validate"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -13,7 +14,7 @@ import (
 
 const (
 	OperatorNKeyID validate.Key = iota
-	OperatorSigningKeys
+	OperatorSigningKeysIds
 	OperatorStrictSigningKeyUsage
 	OperatorAccountServerUrl
 	OperatorSystemAccount
@@ -22,7 +23,7 @@ const (
 var (
 	cmdOperatorFieldParams = map[validate.Key]string{
 		OperatorNKeyID:                "nkey_id",
-		OperatorSigningKeys:           "signing_keys",
+		OperatorSigningKeysIds:        "signing_keys",
 		OperatorStrictSigningKeyUsage: "strict_signing_key_usage",
 		OperatorAccountServerUrl:      "account_server_url",
 		OperatorSystemAccount:         "system_account",
@@ -30,7 +31,7 @@ var (
 
 	validPathCmdOperatorFields []string = []string{
 		cmdOperatorFieldParams[OperatorNKeyID],
-		cmdOperatorFieldParams[OperatorSigningKeys],
+		cmdOperatorFieldParams[OperatorSigningKeysIds],
 		cmdOperatorFieldParams[OperatorStrictSigningKeyUsage],
 		cmdOperatorFieldParams[OperatorAccountServerUrl],
 		cmdOperatorFieldParams[OperatorSystemAccount],
@@ -47,10 +48,11 @@ func pathCmdOperator(b *NatsBackend) *framework.Path {
 				Required:    false,
 				Default:     "operator",
 			},
-			cmdOperatorFieldParams[OperatorSigningKeys]: {
-				Type:        framework.TypeStringSlice,
-				Description: "Slice of other operator NKeys IDs that can be used to sign on behalf of the main operator identity.",
+			cmdOperatorFieldParams[OperatorSigningKeysIds]: {
+				Type:        framework.TypeString,
+				Description: "Comma seperated list of other operator NKeys IDs that can be used to sign on behalf of the main operator identity.",
 				Required:    false,
+				Default:     "",
 			},
 			cmdOperatorFieldParams[OperatorStrictSigningKeyUsage]: {
 				Type:        framework.TypeBool,
@@ -106,7 +108,7 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	}
 
 	// if new nkey, delete old
-	if params.NKeyID != "" && params.NKeyID != data.Get("nkey_id").(string) {
+	if params.NKeyID != "" && params.NKeyID != data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string) {
 		err = deleteNKey(ctx, req.Storage, Operator, params.NKeyID)
 		if err != nil {
 			return nil, err
@@ -114,12 +116,12 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	}
 
 	// create operator nkey
-	key, err := getNkey(ctx, req.Storage, Operator, data.Get("nkey_id").(string))
+	key, err := getNkey(ctx, req.Storage, Operator, data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string))
 	if err != nil {
 		return logical.ErrorResponse("error while accessing nkey storage"), err
 	}
 	if key == nil {
-		key, err = createNkey(ctx, req.Storage, Operator, data.Get("nkey_id").(string))
+		key, err = createNkey(ctx, req.Storage, Operator, data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string))
 		if err != nil {
 			return nil, err
 		}
@@ -131,31 +133,32 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 		return nil, err
 	}
 
-	// systemAccountNKeyID := data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
+	// Lookup operator signing keys
+	operatorSigningKeys := jwt.StringList{}
+	operatorSigningKeysList := data.Get(cmdOperatorFieldParams[OperatorSigningKeysIds]).(string)
+	if len(operatorSigningKeysList) > 0 {
+		for _, rawKeyId := range strings.Split(operatorSigningKeysList, ",") {
+			sigingKeyId := strings.TrimSpace(rawKeyId)
+			key, err := getNkey(ctx, req.Storage, Operator, sigingKeyId)
+			if err != nil {
+				return nil, err
+			}
+			if key == nil {
+				return logical.ErrorResponse("signing key does not exist: %s", sigingKeyId), nil
 
-	// // check system account
-	// sa, err := getNkey(ctx, req.Storage, Account, systemAccountNKeyID)
-	// if err != nil {
-	// 	return logical.ErrorResponse("error while accessing nkey storage"), err
-	// }
-
-	// // create system account
-	// if sa == nil {
-	// 	sa, err = createNkey(ctx, req.Storage, Account, systemAccountNKeyID)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// }
-	// // convert operator key
-	// convertedSysAccountKey, err := convertSeed(sa.Seed)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
+			}
+			// convert operator key
+			converted, err := convertSeed(key.Seed)
+			if err != nil {
+				return nil, err
+			}
+			operatorSigningKeys = append(operatorSigningKeys, converted.PublicKey)
+		}
+	}
 	// update params
 	params.Name = "operator"
 	params.NKeyID = data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string)
-	params.TokenClaims.SigningKeys = data.Get(cmdOperatorFieldParams[OperatorSigningKeys]).([]string)
+	params.TokenClaims.SigningKeys = operatorSigningKeys
 	params.TokenClaims.StrictSigningKeyUsage = data.Get(cmdOperatorFieldParams[OperatorStrictSigningKeyUsage]).(bool)
 	params.TokenClaims.AccountServerURL = data.Get(cmdOperatorFieldParams[OperatorAccountServerUrl]).(string)
 	params.TokenClaims.SystemAccount = data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)

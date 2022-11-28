@@ -22,7 +22,7 @@ func TestCmdAccount(t *testing.T) {
 			Path:      "cmd/operator",
 			Data: map[string]interface{}{
 				"nkey_id":                  "operator1",
-				"signing_keys":             []string{},
+				"signing_keys":             "",
 				"strict_signing_key_usage": false,
 				"account_server_url":       "http://localhost:9090",
 				"system_account":           "sys",
