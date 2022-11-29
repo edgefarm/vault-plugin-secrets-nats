@@ -2,7 +2,6 @@ package natsbackend
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -53,14 +52,14 @@ func (b *NatsBackend) pathAddUserCmd(ctx context.Context, req *logical.Request, 
 	if accountParam, ok := data.GetOk("account_name"); ok {
 		account = accountParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing account name")
+		return logical.ErrorResponse("missing account name"), nil
 	}
 
 	var name string
 	if nameParam, ok := data.GetOk("name"); ok {
 		name = nameParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing user name")
+		return logical.ErrorResponse("missing user name"), nil
 	}
 
 	// get Operator storage
@@ -85,14 +84,14 @@ func (b *NatsBackend) pathReadUserCmd(ctx context.Context, req *logical.Request,
 	if accountParam, ok := data.GetOk("account_name"); ok {
 		account = accountParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing account name")
+		return logical.ErrorResponse("missing account name"), nil
 	}
 
 	var name string
 	if nameParam, ok := data.GetOk("name"); ok {
 		name = nameParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing user name")
+		return logical.ErrorResponse("missing user name"), nil
 	}
 
 	return readOperation[Parameters[jwt.UserClaims]](ctx, req.Storage, userJwtPath(account, name))
@@ -101,7 +100,7 @@ func (b *NatsBackend) pathReadUserCmd(ctx context.Context, req *logical.Request,
 func (b *NatsBackend) pathDeleteUserCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	err := req.Storage.Delete(ctx, userCmdPath(data.Get("account").(string), data.Get("name").(string)))
 	if err != nil {
-		return nil, fmt.Errorf("error deleting user: %w", err)
+		return logical.ErrorResponse("error deleting user: %w", err), nil
 	}
 	return nil, nil
 }
@@ -110,7 +109,7 @@ func (b *NatsBackend) pathCmdUserList(ctx context.Context, req *logical.Request,
 	accountName := d.Get("account_name").(string)
 	entries, err := req.Storage.List(ctx, "cmd/operator/account/"+accountName+"/user")
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	return logical.ListResponse(entries), nil

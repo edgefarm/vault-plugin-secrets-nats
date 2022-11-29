@@ -48,7 +48,7 @@ func getPrefixByte(c Category) (nkeys.PrefixByte, error) {
 	case c == User:
 		return nkeys.PrefixByteUser, nil
 	default:
-		return 0, fmt.Errorf("unknown nkey category")
+		return 0, fmt.Errorf(NKeyUnknownCategoryError)
 	}
 }
 
@@ -102,7 +102,7 @@ func (b *NatsBackend) pathReadNkey(ctx context.Context, req *logical.Request, da
 	// receive nkey data structure from storage
 	nkey, err := getNkey(ctx, req.Storage, c, data.Get("name").(string))
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	if nkey == nil {
@@ -112,7 +112,7 @@ func (b *NatsBackend) pathReadNkey(ctx context.Context, req *logical.Request, da
 	// convert seed into public/private key data structure
 	converted, err := convertSeed(nkey.Seed)
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	result := map[string]interface{}{
@@ -137,12 +137,18 @@ func (b *NatsBackend) pathAddNkey(ctx context.Context, req *logical.Request, dat
 	// when no seed is given, generate a new one
 	if seed == "" {
 		_, err := createNkey(ctx, req.Storage, c, name)
-		return nil, err
+		if err != nil {
+			return logical.ErrorResponse(err.Error()), nil
+		}
+		return nil, nil
 	}
 
 	// when a key is given, store it
 	err := addNkey(ctx, req.Storage, c, name, seed)
-	return nil, err
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
+	}
+	return nil, nil
 }
 
 func (b *NatsBackend) pathDeleteNkey(ctx context.Context, req *logical.Request, data *framework.FieldData, c Category) (*logical.Response, error) {
@@ -151,14 +157,17 @@ func (b *NatsBackend) pathDeleteNkey(ctx context.Context, req *logical.Request, 
 
 	// when a key is given, store it
 	err := deleteNKey(ctx, req.Storage, c, name)
-	return nil, err
+	if err != nil {
+		return logical.ErrorResponse(err.Error()), nil
+	}
+	return nil, nil
 }
 
 func addNkey(ctx context.Context, s logical.Storage, c Category, name string, seed string) error {
 	// get Nkey storage
 	nkey, err := getNkey(ctx, s, c, name)
 	if err != nil {
-		return fmt.Errorf("missing peer")
+		return fmt.Errorf(NKeyMissingPeerError)
 	}
 
 	// no storage exists, create new
@@ -221,7 +230,7 @@ func createSeed(ctx context.Context, prefix nkeys.PrefixByte) (string, error) {
 func getNkey(ctx context.Context, s logical.Storage, c Category, name string) (*Nkey, error) {
 
 	if name == "" {
-		return nil, fmt.Errorf("missing name")
+		return nil, fmt.Errorf(NKeyMissingNameError)
 	}
 
 	return getFromStorage[Nkey](ctx, s, getNkeyPath(c, name))

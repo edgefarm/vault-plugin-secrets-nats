@@ -22,7 +22,7 @@ func TestCmdOperatorSpecificSysaccount(t *testing.T) {
 			Path:      "cmd/operator",
 			Data: map[string]interface{}{
 				"nkey_id":                  "myoperator",
-				"signing_keys":             "",
+				"operator_signing_keys":    "",
 				"strict_signing_key_usage": false,
 				"account_server_url":       "http://localhost:9090",
 				"system_account":           "mysys",
@@ -90,7 +90,7 @@ func TestCmdOperatorDefaultSysaccount(t *testing.T) {
 			Path:      "cmd/operator",
 			Data: map[string]interface{}{
 				"nkey_id":                  "myoperator",
-				"signing_keys":             "",
+				"operator_signing_keys":    "",
 				"strict_signing_key_usage": false,
 				"account_server_url":       "http://localhost:9090",
 			},
@@ -164,7 +164,7 @@ func TestCmdOperatorWithSigningKeysOneDoesNotExist(t *testing.T) {
 		Path:      "cmd/operator",
 		Data: map[string]interface{}{
 			"nkey_id":                  "myoperator",
-			"signing_keys":             "sk1,sk2",
+			"operator_signing_keys":    "sk1,sk2",
 			"strict_signing_key_usage": false,
 			"account_server_url":       "http://localhost:9090",
 		},
@@ -202,7 +202,7 @@ func TestCmdOperatorWithSigningKeysAllExist(t *testing.T) {
 		Path:      "cmd/operator",
 		Data: map[string]interface{}{
 			"nkey_id":                  "myoperator",
-			"signing_keys":             "sk1,sk2",
+			"operator_signing_keys":    "sk1,sk2",
 			"strict_signing_key_usage": false,
 			"account_server_url":       "http://localhost:9090",
 		},

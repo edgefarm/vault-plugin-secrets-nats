@@ -55,6 +55,28 @@ func pathJWT(b *NatsBackend) []*framework.Path {
 			HelpDescription: ``,
 		},
 		{
+			Pattern: "jwt/operator/account/?$",
+			Fields: map[string]*framework.FieldSchema{
+				"name": {
+					Type:        framework.TypeString,
+					Description: "Account Name.",
+					Required:    false,
+				},
+				"jwt": {
+					Type:        framework.TypeString,
+					Description: "Account JWT to import.",
+					Required:    false,
+				},
+			},
+			Operations: map[logical.Operation]framework.OperationHandler{
+				logical.ListOperation: &framework.PathOperation{
+					Callback: b.pathListAccountJWT,
+				},
+			},
+			HelpSynopsis:    `Manages account JWT's.`,
+			HelpDescription: ``,
+		},
+		{
 			Pattern: "jwt/operator/account/" + framework.GenericNameRegex("name") + "$",
 			Fields: map[string]*framework.FieldSchema{
 				"name": {
@@ -127,7 +149,7 @@ func pathJWT(b *NatsBackend) []*framework.Path {
 func (b *NatsBackend) pathJwtExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {
 	out, err := req.Storage.Get(ctx, req.Path)
 	if err != nil {
-		return false, fmt.Errorf("existence check failed: %w", err)
+		return false, fmt.Errorf(JwtExistenceCheckError+": %w", err)
 	}
 
 	return out != nil, nil
@@ -138,7 +160,7 @@ func (b *NatsBackend) pathAddOperatorJWT(ctx context.Context, req *logical.Reque
 	if tokenParam, ok := data.GetOk("jwt"); ok {
 		token = tokenParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing user name")
+		return logical.ErrorResponse(JwtMissingUserNameError), nil
 	}
 	return nil, addOperatorJWT(ctx, req.Storage, token)
 }
@@ -148,14 +170,14 @@ func (b *NatsBackend) pathAddAccountJWT(ctx context.Context, req *logical.Reques
 	if nameParam, ok := data.GetOk("name"); ok {
 		name = nameParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing account name")
+		return logical.ErrorResponse(JwtMissingAccountNameError), nil
 	}
 
 	var token string
 	if tokenParam, ok := data.GetOk("jwt"); ok {
 		token = tokenParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing user name")
+		return nil, fmt.Errorf(JwtMissingUserNameError)
 	}
 
 	return nil, addAccountJWT(ctx, req.Storage, token, name)
@@ -166,21 +188,21 @@ func (b *NatsBackend) pathAddUserJWT(ctx context.Context, req *logical.Request, 
 	if accountParam, ok := data.GetOk("account_name"); ok {
 		account = accountParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing account name")
+		return logical.ErrorResponse(JwtMissingAccountNameError), nil
 	}
 
 	var name string
 	if nameParam, ok := data.GetOk("name"); ok {
 		name = nameParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing user name")
+		return logical.ErrorResponse(JwtMissingUserNameError), nil
 	}
 
 	var token string
 	if tokenParam, ok := data.GetOk("jwt"); ok {
 		token = tokenParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing user name")
+		return logical.ErrorResponse(JwtMissingUserNameError), nil
 	}
 
 	return nil, addUserJWT(ctx, req.Storage, token, account, name)
@@ -196,7 +218,7 @@ func (b *NatsBackend) pathReadAccountJWT(ctx context.Context, req *logical.Reque
 	if nameParam, ok := data.GetOk("name"); ok {
 		name = nameParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing account name")
+		return logical.ErrorResponse(JwtMissingAccountNameError), nil
 	}
 
 	return readOperation[JwtToken](ctx, req.Storage, accountJwtPath(name))
@@ -216,14 +238,14 @@ func (b *NatsBackend) pathReadUserJWT(ctx context.Context, req *logical.Request,
 	if accountParam, ok := data.GetOk("account_name"); ok {
 		account = accountParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing account name")
+		return logical.ErrorResponse(JwtMissingAccountNameError), nil
 	}
 
 	var name string
 	if nameParam, ok := data.GetOk("name"); ok {
 		name = nameParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing user name")
+		return logical.ErrorResponse(JwtMissingUserNameError), nil
 	}
 
 	return readOperation[JwtToken](ctx, req.Storage, userJwtPath(account, name))
@@ -234,12 +256,12 @@ func (b *NatsBackend) pathListUserJWT(ctx context.Context, req *logical.Request,
 	if accountParam, ok := data.GetOk("account_name"); ok {
 		account = accountParam.(string)
 	} else if !ok {
-		return nil, fmt.Errorf("missing account name")
+		return logical.ErrorResponse(JwtMissingAccountNameError), nil
 	}
 
 	entries, err := req.Storage.List(ctx, "jwt/operator/account/"+account+"/user/")
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	return logical.ListResponse(entries), nil
@@ -264,7 +286,7 @@ func addJWT[T any, P interface{ *T }](ctx context.Context, s logical.Storage, to
 	}
 	_, ok := claims.(P)
 	if !ok {
-		return errors.New("token has wrong claim type")
+		return errors.New(JwtTokenHasWrongClaimTypeError)
 	}
 
 	t := &JwtToken{}

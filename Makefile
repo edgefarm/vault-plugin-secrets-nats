@@ -30,6 +30,8 @@ fmt:
 	go fmt $$(go list ./...)
 
 test:
+	go clean -testcache
 	go test ./...
+	go vet ./...
 
 .PHONY: build clean fmt start enable test

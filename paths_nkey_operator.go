@@ -52,7 +52,7 @@ func (b *NatsBackend) pathReadOperatorNkey(ctx context.Context, req *logical.Req
 func (b *NatsBackend) pathOperatorNkeysList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	entries, err := req.Storage.List(ctx, "nkey/operator/")
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	return logical.ListResponse(entries), nil

@@ -23,7 +23,7 @@ const (
 var (
 	cmdOperatorFieldParams = map[validate.Key]string{
 		OperatorNKeyID:                "nkey_id",
-		OperatorSigningKeysIds:        "signing_keys",
+		OperatorSigningKeysIds:        "operator_signing_keys",
 		OperatorStrictSigningKeyUsage: "strict_signing_key_usage",
 		OperatorAccountServerUrl:      "account_server_url",
 		OperatorSystemAccount:         "system_account",
@@ -100,7 +100,7 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	// get Operator storage
 	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
 	if err != nil {
-		return logical.ErrorResponse("missing operator"), err
+		return logical.ErrorResponse(OperatorMissingError), nil
 	}
 	// no storage exists, create new
 	if params == nil {
@@ -111,53 +111,59 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	if params.NKeyID != "" && params.NKeyID != data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string) {
 		err = deleteNKey(ctx, req.Storage, Operator, params.NKeyID)
 		if err != nil {
-			return nil, err
+			return logical.ErrorResponse(err.Error()), nil
 		}
 	}
 
 	// create operator nkey
 	key, err := getNkey(ctx, req.Storage, Operator, data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string))
 	if err != nil {
-		return logical.ErrorResponse("error while accessing nkey storage"), err
+		return logical.ErrorResponse(NKeyStorageAccessError), nil
 	}
 	if key == nil {
 		key, err = createNkey(ctx, req.Storage, Operator, data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string))
 		if err != nil {
-			return nil, err
+			return logical.ErrorResponse(err.Error()), nil
 		}
 	}
 
 	// convert operator key
 	converted, err := convertSeed(key.Seed)
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	// Lookup operator signing keys
 	operatorSigningKeys := jwt.StringList{}
 	operatorSigningKeysList := data.Get(cmdOperatorFieldParams[OperatorSigningKeysIds]).(string)
+	missingKeys := []string{}
 	if len(operatorSigningKeysList) > 0 {
 		for _, rawKeyId := range strings.Split(operatorSigningKeysList, ",") {
 			sigingKeyId := strings.TrimSpace(rawKeyId)
 			key, err := getNkey(ctx, req.Storage, Operator, sigingKeyId)
 			if err != nil {
-				return nil, err
+				return logical.ErrorResponse(err.Error()), nil
 			}
 			if key == nil {
-				return logical.ErrorResponse("signing key does not exist: %s", sigingKeyId), nil
-
+				missingKeys = append(missingKeys, sigingKeyId)
+				continue
 			}
 			// convert operator key
 			converted, err := convertSeed(key.Seed)
 			if err != nil {
-				return nil, err
+				return logical.ErrorResponse(err.Error()), nil
 			}
 			operatorSigningKeys = append(operatorSigningKeys, converted.PublicKey)
 		}
+		if len(missingKeys) > 0 {
+			return logical.ErrorResponse(MissingOperatorSigningKeysError + ": " + strings.Join(missingKeys, ",")), nil
+		}
 	}
 	// update params
+	nkeyID := data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string)
 	params.Name = "operator"
-	params.NKeyID = data.Get(cmdOperatorFieldParams[OperatorNKeyID]).(string)
+	params.NKeyID = nkeyID
+	params.TokenID = nkeyID
 	params.TokenClaims.SigningKeys = operatorSigningKeys
 	params.TokenClaims.StrictSigningKeyUsage = data.Get(cmdOperatorFieldParams[OperatorStrictSigningKeyUsage]).(bool)
 	params.TokenClaims.AccountServerURL = data.Get(cmdOperatorFieldParams[OperatorAccountServerUrl]).(string)
@@ -165,31 +171,7 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 	params.TokenClaims.Subject = converted.PublicKey
 	err = updateOperatorJwt(ctx, req.Storage, params, converted.KeyPair)
 	if err != nil {
-		return nil, err
-	}
-
-	// create siging keys
-	seed, err := converted.KeyPair.Seed() //.StdEncoding.DecodeString(okey.Seed)
-	if err != nil {
-		return nil, err
-	}
-	_, err = nkeys.FromSeed(seed)
-	if err != nil {
-		return nil, err
-	}
-	for _, key := range params.TokenClaims.SigningKeys {
-		// get signing key
-		skey, err := getNkey(ctx, req.Storage, Operator, key)
-		if err != nil {
-			return logical.ErrorResponse("error while accessing nkey storage"), err
-		}
-		// create signing key if it doesn't exist
-		if skey == nil {
-			_, err = createNkey(ctx, req.Storage, Operator, key)
-			if err != nil {
-				return nil, err
-			}
-		}
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	systemAccountName := data.Get(cmdOperatorFieldParams[OperatorSystemAccount]).(string)
@@ -224,13 +206,13 @@ func (b *NatsBackend) pathAddOperatorCmd(ctx context.Context, req *logical.Reque
 		},
 	}, key)
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	// store operator parameters
 	_, err = storeInStorage(ctx, req.Storage, operatorCmdPath(), params)
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	return nil, nil
@@ -244,21 +226,21 @@ func (b *NatsBackend) pathDeleteOperatorCmd(ctx context.Context, req *logical.Re
 	// get Operator storage
 	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, req.Storage, operatorCmdPath())
 	if err != nil {
-		return logical.ErrorResponse("missing operator"), err
+		return logical.ErrorResponse(OperatorMissingError), err
 	}
 
 	// delete referenced nkey
 	if params != nil {
 		err = deleteNKey(ctx, req.Storage, Operator, params.NKeyID)
 		if err != nil {
-			return nil, err
+			return logical.ErrorResponse(err.Error()), nil
 		}
 	}
 
 	// delete operator storage
 	err = req.Storage.Delete(ctx, operatorCmdPath())
 	if err != nil {
-		return nil, fmt.Errorf("error deleting operator: %w", err)
+		return nil, fmt.Errorf(DeletingOperatorError+": %w", err)
 	}
 	return nil, nil
 }
@@ -289,7 +271,7 @@ func updateOperatorJwt(ctx context.Context, s logical.Storage, p *Parameters[jwt
 func (b *NatsBackend) getOperatorParams(ctx context.Context, s logical.Storage) (*Parameters[jwt.OperatorClaims], error) {
 	params, err := getFromStorage[Parameters[jwt.OperatorClaims]](ctx, s, operatorCmdPath())
 	if err != nil {
-		return nil, fmt.Errorf("missing operator")
+		return nil, fmt.Errorf(OperatorMissingError)
 	}
 	return params, nil
 }

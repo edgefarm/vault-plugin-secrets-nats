@@ -29,7 +29,7 @@ func ValidateFields(data map[string]interface{}, valid []string) error {
 	}
 
 	if len(invalidKeys) > 0 {
-		return fmt.Errorf("invalid keys: % #v", strings.Join(invalidKeys, ", "))
+		return fmt.Errorf(InvalidKeysError+": % #v", strings.Join(invalidKeys, ", "))
 	}
 	return nil
 }

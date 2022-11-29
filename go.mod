@@ -11,6 +11,7 @@ require (
 	github.com/nats-io/nats.go v1.18.0
 	github.com/nats-io/nkeys v0.3.0
 	github.com/stretchr/testify v1.7.1
+	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
 )
 
 require (
@@ -48,7 +49,7 @@ require (
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	golang.org/x/crypto v0.0.0-20220926161630-eccd6366d1be // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
-	golang.org/x/sys v0.0.0-20220928140112-f11e5e49a4ec // indirect
+	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/text v0.3.6 // indirect
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013 // indirect

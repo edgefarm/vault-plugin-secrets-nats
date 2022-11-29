@@ -49,7 +49,7 @@ func (b *NatsBackend) pathReadUserNkey(ctx context.Context, req *logical.Request
 func (b *NatsBackend) pathUserNkeysList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
 	entries, err := req.Storage.List(ctx, "nkey/user/")
 	if err != nil {
-		return nil, err
+		return logical.ErrorResponse(err.Error()), nil
 	}
 
 	return logical.ListResponse(entries), nil
