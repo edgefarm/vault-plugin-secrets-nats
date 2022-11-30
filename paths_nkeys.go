@@ -33,11 +33,6 @@ type Nkey struct {
 	Seed string `json:"seed" mapstructure:"seed"`
 }
 
-// // keyPair represens a nkey seed, which can be used to generate a public key and private key.
-// type KeyPair struct {
-
-// }
-
 // getPrefixByte is a helper function to get the prefix byte for a given category.
 func getPrefixByte(c Category) (nkeys.PrefixByte, error) {
 	switch {

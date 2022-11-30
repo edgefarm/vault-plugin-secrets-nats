@@ -15,11 +15,11 @@ import (
 )
 
 type AccountCmdConfig struct {
-	Name        string
-	NKeyID      string
-	AccountPath string
-	SigningKeys string
-	jwt.OperatorLimits
+	Name               string `json:"name"`
+	NKeyID             string `json:"nkey_id"`
+	AccountPath        string `json:"account_path"`
+	SigningKeys        string `json:"signing_keys"`
+	jwt.OperatorLimits `json:"limits"`
 }
 
 const (
@@ -465,8 +465,8 @@ func updateAccountJwt(ctx context.Context, s logical.Storage, p *Parameters[jwt.
 	return nil
 }
 
-func (b *NatsBackend) getAccountParams(ctx context.Context, req *logical.Request) (*Parameters[jwt.AccountClaims], error) {
-	params, err := getFromStorage[Parameters[jwt.AccountClaims]](ctx, req.Storage, operatorCmdPath())
+func (b *NatsBackend) getAccountParams(ctx context.Context, req *logical.Request, account string) (*Parameters[jwt.AccountClaims], error) {
+	params, err := getFromStorage[Parameters[jwt.AccountClaims]](ctx, req.Storage, accountCmdPath(account))
 	if err != nil {
 		return nil, fmt.Errorf(AccountMissingError)
 	}
