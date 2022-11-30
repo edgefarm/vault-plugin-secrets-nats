@@ -212,14 +212,14 @@ List all accounts.
 
 **Syntax:**
 
-```console
+```bash
 vault list nats-secrets/cmd/operator/account
 ```
 
 **Example:**
 
 ```console
-vault list nats-secrets/cmd/operator/account
+$ vault list nats-secrets/cmd/operator/account
 Keys
 ----
 SYS
@@ -232,7 +232,7 @@ Read specific account.
 
 **Syntax:**
 
-```console
+```bash
 vault read nats-secrets/cmd/operator/account/<name>
 ```
 
@@ -294,7 +294,7 @@ Create or update an NKey for a category.
 
 Syntax:
 
-```console
+```bash
 vault write [flags] nats-secrets/nkey/<category>/<name> [name=<name>]
 ```
 
@@ -320,7 +320,7 @@ List all NKeys for a category.
 
 Syntax:
 
-```console
+```bash
 vault list nats-secrets/nkey/<category>
 ```
 
@@ -341,7 +341,7 @@ Read specific NKey for a category and name.
 
 Syntax:
 
-```console
+```bash
 vault read nats-secrets/nkey/<category>/<name>
 ```
 
