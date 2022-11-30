@@ -12,6 +12,7 @@ const (
 	// Account errors
 	StrictSigningKeyUsageButNoKeyDefinedError = "operator is enabled with strict signing key usage. Provide at least one account signing key"
 	AccountMissingError                       = "missing account"
+	AccountNotFoundError                      = "account not found"
 	AccountDeleteError                        = "error deleting account"
 	MissingAccountSigningKeysError            = "missing account signing keys"
 
@@ -23,6 +24,7 @@ const (
 
 	// JWT errors
 	JwtMissingUserNameError        = "missing user name"
+	JwtUserNotFound                = "user not found"
 	JwtMissingAccountNameError     = "missing account name"
 	JwtTokenHasWrongClaimTypeError = "token has wrong claim type"
 	JwtExistenceCheckError         = "existence check failed"

@@ -42,7 +42,14 @@ func pathCmd(b *NatsBackend) []*framework.Path {
 			HelpDescription: "pathRoleListHelpDescription",
 		},
 		{
-			Pattern: "cmd/operator/account/" + framework.GenericNameRegex("account_name") + "/user/?$",
+			Pattern: "cmd/operator/account/" + framework.GenericNameRegex(cmdUserFieldParams[UserAccountName]) + "/user/?$",
+			Fields: map[string]*framework.FieldSchema{
+				cmdUserFieldParams[UserAccountName]: {
+					Type:        framework.TypeString,
+					Description: "Account Name",
+					Required:    true,
+				},
+			},
 			Operations: map[logical.Operation]framework.OperationHandler{
 				logical.ListOperation: &framework.PathOperation{
 					Callback: b.pathCmdUserList,
