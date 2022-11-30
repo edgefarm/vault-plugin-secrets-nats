@@ -240,9 +240,13 @@ func (b *NatsBackend) pathAddAccountCmd(ctx context.Context, req *logical.Reques
 		return logical.ErrorResponse(err.Error()), nil
 	}
 	name := data.Get(cmdAccountFieldParams[AccountName]).(string)
+	accountNKeyID := data.Get(cmdAccountFieldParams[AccountNKeyID]).(string)
+	if accountNKeyID == "" {
+		accountNKeyID = name
+	}
 	c := &AccountCmdConfig{
 		Name:        name,
-		NKeyID:      data.Get(cmdAccountFieldParams[AccountNKeyID]).(string),
+		NKeyID:      accountNKeyID,
 		AccountPath: accountCmdPath(name),
 		SigningKeys: data.Get(cmdAccountFieldParams[AccountSigningKeys]).(string),
 		OperatorLimits: jwt.OperatorLimits{
