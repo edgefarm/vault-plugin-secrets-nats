@@ -98,29 +98,15 @@ Create or update an operator:
 vault write [flags] nats-secrets/cmd/operator [optional parameters]
 ```
 
-**Examples**:
-
-```console
-$ vault write nats-secrets/cmd/operator nkey_id=myOperator
-Success! Data written to: nats-secrets/cmd/operator
-```
-
-If no parameters are specified, the operator will be created with default values. You need to specify `-force` flag.
-
-```console
-$ vault write -force nats-secrets/cmd/operator
-Success! Data written to: nats-secrets/cmd/operator
-```
-
-Valid parameters are:
+**Valid parameters:**
 
 | Parameter                | Default    | Required | Example                             | Description                                                                                                                                                  |
 |--------------------------|------------|----------|-------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| nkey_id                  | "operator" | false    | mynkey                            | The nkey id of the operator. If not provided the name of the operator is used                                                                                |
-| operator_signing_keys    | ""         | false    | sk1,sk2                           | Comma seperated list of additional signing keys for the operator. These NKey IDs must be created before the operator is created (see <br>`nkey`<br> section) |
+| nkey_id                  | "operator" | false    | "mynkey"                            | The nkey id of the operator. If not provided the name of the operator is used                                                                                |
+| operator_signing_keys    | ""         | false    | "sk1,sk2"                           | Comma seperated list of additional signing keys for the operator. These NKey IDs must be created before the operator is created (see <br>`nkey`<br> section) |
 | strict_signing_key_usage | false      | false    | true                                | if true, all resources signed by the operator must also use signing keys.                                                                                    |
-| account_server_url       | ""         | false    | https://accounts.example.com:1234 | The natst account server url to push changes to. If not set, pushing is disabled.                                                                            |
-| system_account           | "SYS"      | false    | mysys                             | The default name of the sys account that gets created.                                                                                                       |
+| account_server_url       | ""         | false    | "https://accounts.example.com:1234" | The natst account server url to push changes to. If not set, pushing is disabled.                                                                            |
+| system_account           | "SYS"      | false    | "mysys"                             | The default name of the sys account that gets created.                                                                                                       |
 
 ### Reading operator
 
@@ -129,13 +115,15 @@ To read the operator:
 vault read nats-secrets/cmd/operator
 ```
 
-**Examples**:
+### Examples
 
 ```console
 $ vault write nats-secrets/nkey/operator/sk2 name=sk2
 Success! Data written to: nats-secrets/nkey/operator/sk2
+
 $ vault write nats-secrets/nkey/operator/sk1 name=sk1
 Success! Data written to: nats-secrets/nkey/operator/sk1
+
 $ vault write nats-secrets/cmd/operator nkey_id=op operator_signing_keys=sk1,sk2 strict_signing_key_usage=true
 Success! Data written to: nats-secrets/cmd/operator
 
@@ -155,40 +143,25 @@ token_id    op
 
 ## Managing accounts
 
-The `cmd/operator/account` command manages accounts. You can create multiple accounts for an operator.
+The `cmd/operator/account` command manages accounts. You can create multiple accounts for an operator. Note that the operator has to be created before you can create accounts.
 
-### Creating/Updating accounts
+### Creating/updating accounts
 
 Create or update an account.
 
 **Syntax:**
 
 ```console
-vault write [flags] nats-secrets/cmd/operator/account/<name> [optional parameters]
+vault write nats-secrets/cmd/operator/account/<name> [optional parameters]
 ```
 
-**Examples**:
-
-```console
-$ vault write nats-secrets/cmd/operator/account/myAccount nkey_id=myAccountKey
-Success! Data written to: nats-secrets/cmd/operator/myAccount
-```
-
-If no parameters are specified, the operator will be created with default values. You need to specify `-force` flag.
-
-```console
-$ vault write -force nats-secrets/cmd/operator/myAccount
-Success! Data written to: nats-secrets/cmd/operator/myAccount
-```
-
-Valid parameters are:
-
+**Valid parameters:**
 
 | Parameter                                | Default        | Required | Example   | Description                                                                                             |
 |------------------------------------------|----------------|----------|-----------|---------------------------------------------------------------------------------------------------------|
-| nkey_id                                  | account's name | false    | myAccount | Create or use existing NKey with this id                                                                |
-| operator_signing_key                     | ""             | false    | sk1       | Explicitly specified operator signing key to sign the account                                           |
-| account_signing_keys                     | ""             | false    | ask1,ask2 | Comma seperated list of other account NKeys IDs that can be used to sign on behalf of the accounts NKey |
+| nkey_id                                  | account's name | false    | "myAccount" | Create or use existing NKey with this id                                                                |
+| operator_signing_key                     | ""             | false    | "sk1"       | Explicitly specified operator signing key to sign the account                                           |
+| account_signing_keys                     | ""             | false    | "ask1,ask2" | Comma seperated list of other account NKeys IDs that can be used to sign on behalf of the accounts NKey |
 | limits_nats_subs                         | -1             | false    | 10        | Max number of subscriptions (-1 is unlimited)                                                           |
 | limits_nats_data                         | -1             | false    | 10        | Max number of bytes (-1 is unlimited)                                                                   |
 | limits_nats_payload                      | -1             | false    | 10        | Max message payload (-1 is unlimited)                                                                   |
@@ -206,9 +179,8 @@ Valid parameters are:
 | limits_jetstream_disk_max_stream_bytes   | 0              | false    | 104857600 | Max bytes a disk backed stream can have. (0 means disabled/unlimited)                                   |
 | limits_jetstream_max_bytes_required      | false          | false    | true      | Max bytes required by all Streams                                                                       |
 
-### Listing accounts
 
-List all accounts.
+### Listing all accounts
 
 **Syntax:**
 
@@ -216,17 +188,7 @@ List all accounts.
 vault list nats-secrets/cmd/operator/account
 ```
 
-**Example:**
-
-```console
-$ vault list nats-secrets/cmd/operator/account
-Keys
-----
-SYS
-myAccount
-```
-
-### Reading accounts
+### Reading a specific account
 
 Read specific account.
 
@@ -236,9 +198,18 @@ Read specific account.
 vault read nats-secrets/cmd/operator/account/<name>
 ```
 
-**Example:**
+### Examples
 
 ```console
+$ vault write nats-secrets/cmd/operator/account/myAccount nkey_id=myAccountKey
+Success! Data written to: nats-secrets/cmd/operator/myAccount
+
+$ vault list nats-secrets/cmd/operator/account
+Keys
+----
+SYS
+myAccount
+
 $ vault read nats-secrets/cmd/operator/account/myAccount
 vault read nats-secrets/cmd/operator/account/myAccount
 Key         Value
@@ -288,17 +259,37 @@ The `nkey/<category>` path manages NKeys for different categories. Possible cate
   * `user` - NKeys for users
 
 
-### Creating/Updating NKeys
+### Creating/Updating a specific NKey for a category
 
-Create or update an NKey for a category.
-
-Syntax:
+**Syntax:**
 
 ```bash
 vault write [flags] nats-secrets/nkey/<category>/<name> [name=<name>]
 ```
 
-Example:
+**Valid parameters:**
+
+| Parameter | Default | Required | Example                                                                          | Description              |
+|-----------|---------|----------|----------------------------------------------------------------------------------|--------------------------|
+| seed      | ""      | false    | U0FBREU1N0RTWjdVUTRLU0ZVUVlQUFk1R1pIQzRCSlBCRExKS1ZKNEFPWlJDNzNEWkFWRDdBRVZOQQ== | NKey seed to be imported |
+
+### Listing all NKeys for a category
+
+Syntax:
+
+```bash
+vault list nats-secrets/nkey/<category>
+```
+
+### Reading a specific NKey for a category
+
+Syntax:
+
+```bash
+vault read nats-secrets/nkey/<category>/<name>
+```
+
+### Examples
 
 ```console
 # Create an NKey for the operator
@@ -312,50 +303,22 @@ Success! Data written to: nats-secrets/nkey/account/ask1
 # Create an NKey for the user
 $ vault write nats-secrets/nkey/user/uk1 name=u1
 Success! Data written to: nats-secrets/nkey/user/uk1
-```
 
-### Listing NKeys
-
-List all NKeys for a category.
-
-Syntax:
-
-```bash
-vault list nats-secrets/nkey/<category>
-```
-
-Example:
-
-```console
 # Listing operator NKeys
 $ vault list nats-secrets/nkey/operator
 Keys
 ----
 op
 osk1
-```
 
-### Reading NKeys
-
-Read specific NKey for a category and name.
-
-Syntax:
-
-```bash
-vault read nats-secrets/nkey/<category>/<name>
-```
-
-Example:
-
-```console
 # Read operator NKey for specific account
-$ vault read nats-secrets/nkey/account/myAccountKey
+$ vault read nats-secrets/nkey/operator/osk1
 Key            Value
 ---            -----
-name           myAccountKey
-private_key    UEFaSFBZNFdQNUVIQ1VSTkVHRDM2SEpXSllYQUtMWUkyMktWS1BBRFdNSVg2WTZJRkk3WUFYTkhNTlBSRkFSRVRQVVBXTUM0RjZZRk1XT0hKNlpVQzQ0UFNUSTRYUEFSTkw0NVg1TUFBUVpB
-public_key     ABO2OY27CKBCJG7I7MYFYL5QKZM4OT5TIFZY7FGRZO6BC2XZ3P2YBEQP
-seed           U0FBREU1N0RTWjdVUTRLU0ZVUVlQUFk1R1pIQzRCSlBCRExKS1ZKNEFPWlJDNzNEWkFWRDdBRVZOQQ==
+name           osk1
+private_key    UENISUdDRjJIMjU2TVNDN0FQMzZMS0dTQk9SVkdGVVRYNTJIS0lIUFkySFNFN08zM0EzQlZXNldKSlNISE02NkI3SUJPRjZMQlZPSldJS1JBWFdTUjdPUUg3VFo3RVJOSEFTU1RYV1dVWDJB
+public_key     ODN5MSTEOOZ54D6QC4L4WDK4TMQVCBPNFD65AP7HT6JC2OBFFHPNM5IZ
+seed           U09BSTVBWUlYSTdMWFpTSUw0QjdQWk5JMklGMkdVWVdTTzdYSTVKQTU3REk2SVQ1M1BNRE1HU00ySQ==
 ```
 
 ## Managing JWTs
