@@ -53,7 +53,7 @@ func TestNkeys(t *testing.T) {
 	t.Run("Test user nkey", func(t *testing.T) {
 
 		// Create new nkey
-		_, err := testNkeyCreate(t, b, reqStorage, "nkey/user/us1", map[string]interface{}{
+		_, err := testNkeyCreate(t, b, reqStorage, "nkey/account/nk1/user/us1", map[string]interface{}{
 			"name": "us1",
 		})
 		assert.NoError(t, err)
@@ -61,7 +61,7 @@ func TestNkeys(t *testing.T) {
 		// Readout nkey
 		resp, err := b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ReadOperation,
-			Path:      "nkey/user/us1",
+			Path:      "nkey/account/nk1/user/us1",
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
@@ -72,7 +72,7 @@ func TestNkeys(t *testing.T) {
 		seed, err := createSeed(ctx, nkeys.PrefixByteUser)
 		assert.NoError(t, err)
 
-		_, err = testNkeyCreate(t, b, reqStorage, "nkey/user/us2", map[string]interface{}{
+		_, err = testNkeyCreate(t, b, reqStorage, "nkey/account/nk1/user/us2", map[string]interface{}{
 			"seed": seed,
 		})
 		assert.NoError(t, err)
@@ -80,7 +80,7 @@ func TestNkeys(t *testing.T) {
 		// Readout second nkey
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ReadOperation,
-			Path:      "nkey/user/us2",
+			Path:      "nkey/account/nk1/user/us2",
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)

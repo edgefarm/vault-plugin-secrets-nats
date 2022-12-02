@@ -9,12 +9,17 @@ import (
 
 func pathUserNkey(b *NatsBackend) *framework.Path {
 	return &framework.Path{
-		Pattern: "nkey/user/" + framework.GenericNameRegex("name") + "$",
+		Pattern: "nkey/account/" + framework.GenericNameRegex("account_name") + "/user/" + framework.GenericNameRegex("name") + "$",
 		Fields: map[string]*framework.FieldSchema{
 			"name": {
 				Type:        framework.TypeString,
 				Description: "Name of the Nkey.",
 				Required:    false,
+			},
+			"account_name": {
+				Type:        framework.TypeString,
+				Description: "Account Name",
+				Required:    true,
 			},
 			"seed": {
 				Type:        framework.TypeString,

@@ -2,6 +2,8 @@ package natsbackend
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/validate"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -25,10 +27,10 @@ var (
 	}
 
 	validPathCmdUserFields []string = []string{
-		cmdOperatorFieldParams[UserName],
-		cmdOperatorFieldParams[UserNKeyID],
-		cmdOperatorFieldParams[UserAccountName],
-		cmdOperatorFieldParams[UserAccountSigningKey],
+		cmdUserFieldParams[UserName],
+		cmdUserFieldParams[UserNKeyID],
+		cmdUserFieldParams[UserAccountName],
+		cmdUserFieldParams[UserAccountSigningKey],
 	}
 )
 
@@ -36,23 +38,23 @@ func pathCmdUser(b *NatsBackend) *framework.Path {
 	return &framework.Path{
 		Pattern: "cmd/operator/account/" + framework.GenericNameRegex("account_name") + "/user/" + framework.GenericNameRegex("name") + "$",
 		Fields: map[string]*framework.FieldSchema{
-			cmdOperatorFieldParams[UserName]: {
+			cmdUserFieldParams[UserName]: {
 				Type:        framework.TypeString,
 				Description: "User Name",
 				Required:    true,
 			},
-			cmdOperatorFieldParams[UserNKeyID]: {
+			cmdUserFieldParams[UserNKeyID]: {
 				Type:        framework.TypeString,
 				Description: "Create or use existing NKey with this id",
 				Required:    false,
 				Default:     "",
 			},
-			cmdOperatorFieldParams[UserAccountName]: {
+			cmdUserFieldParams[UserAccountName]: {
 				Type:        framework.TypeString,
 				Description: "Account Name",
 				Required:    true,
 			},
-			cmdOperatorFieldParams[UserAccountSigningKey]: {
+			cmdUserFieldParams[UserAccountSigningKey]: {
 				Type:        framework.TypeString,
 				Description: "Account Signing Key",
 				Required:    false,
@@ -82,18 +84,40 @@ type UserConfig struct {
 	Name        string `json:"name"`
 	AccountName string `json:"account_name"`
 	NKeyID      string `json:"nkey_id"`
+	UserPath    string `json:"user_path"`
 }
 
 func (b *NatsBackend) pathAddUserCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	if err := validate.ValidateFields(data.Raw, validPathCmdUserFields); err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
-	config := &UserConfig{
-		Name:        data.Get(cmdOperatorFieldParams[UserName]).(string),
-		AccountName: data.Get(cmdOperatorFieldParams[UserAccountName]).(string),
-		NKeyID:      data.Get(cmdOperatorFieldParams[UserNKeyID]).(string),
+
+	var account string
+	if accountParam, ok := data.GetOk(cmdUserFieldParams[UserAccountName]); ok {
+		account = accountParam.(string)
+	} else if !ok {
+		return logical.ErrorResponse(JwtMissingAccountNameError), nil
 	}
-	accountSigningKey := data.Get(cmdOperatorFieldParams[UserAccountSigningKey]).(string)
+
+	var name string
+	if nameParam, ok := data.GetOk(cmdUserFieldParams[UserName]); ok {
+		name = nameParam.(string)
+	} else if !ok {
+		return logical.ErrorResponse(JwtMissingUserNameError), nil
+	}
+
+	config := &UserConfig{
+		AccountName: account,
+		Name:        name,
+		NKeyID:      data.Get(cmdUserFieldParams[UserNKeyID]).(string),
+		UserPath:    userCmdPath(account, name),
+	}
+
+	if config.NKeyID == "" {
+		config.NKeyID = fmt.Sprintf("%s_%s", config.AccountName, config.Name)
+	}
+
+	accountSigningKey := data.Get(cmdUserFieldParams[UserAccountSigningKey]).(string)
 
 	accountParams, err := getFromStorage[Parameters[jwt.AccountClaims]](ctx, req.Storage, accountCmdPath(config.AccountName))
 	if err != nil {
@@ -106,7 +130,7 @@ func (b *NatsBackend) pathAddUserCmd(ctx context.Context, req *logical.Request, 
 	// Signing key isn't provided, so choose account key as signing key
 	var signingKey *Nkey
 	if accountSigningKey == "" {
-		nkey, err := getNkey(ctx, req.Storage, User, config.NKeyID)
+		nkey, err := getNkey(ctx, req.Storage, Account, accountParams.NKeyID)
 		if err != nil {
 			return logical.ErrorResponse(err.Error()), nil
 		}
@@ -118,7 +142,7 @@ func (b *NatsBackend) pathAddUserCmd(ctx context.Context, req *logical.Request, 
 	} else {
 		// Signing key is provided, so validate it that is a valid signing key for the account
 		// receive nkey data structure from storage
-		nkey, err := getNkey(ctx, req.Storage, Account, config.AccountName)
+		nkey, err := getNkey(ctx, req.Storage, Account, accountSigningKey)
 		if err != nil {
 			return logical.ErrorResponse(err.Error()), nil
 		}
@@ -126,44 +150,31 @@ func (b *NatsBackend) pathAddUserCmd(ctx context.Context, req *logical.Request, 
 		if nkey == nil {
 			return logical.ErrorResponse(err.Error()), nil
 		}
+		converted, err := convertSeed(nkey.Seed)
+		if err != nil {
+			return logical.ErrorResponse(err.Error()), nil
+		}
 
 		if accountParams.TokenClaims.Account.SigningKeys != nil {
-			for _, signingKey := range accountParams.TokenClaims.Account.SigningKeys {
-				converted, err := convertSeed(nkey.Seed)
-				if err != nil {
-					return logical.ErrorResponse(err.Error()), nil
-				}
-				if nkey.
-
-		signingKey = nkey
+			if _, ok := accountParams.TokenClaims.Account.SigningKeys[converted.PublicKey]; ok {
+				signingKey = nkey
+			}
+		}
 	}
 
 	err = b.AddUserCmd(ctx, req.Storage, config, signingKey)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
-
+	return nil, nil
 }
 
-func (b *NatsBackend) AddUserCmd(ctx context.Context, s logical.Storage, config *UserConfig, signingKey *Nkey) error {
-	var account string
-	if accountParam, ok := data.GetOk("account_name"); ok {
-		account = accountParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingAccountNameError), nil
-	}
+func (b *NatsBackend) AddUserCmd(ctx context.Context, s logical.Storage, c *UserConfig, signingKey *Nkey) error {
 
-	var name string
-	if nameParam, ok := data.GetOk("name"); ok {
-		name = nameParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingUserNameError), nil
-	}
-
-	// get Operator storage
-	user, err := getFromStorage[Parameters[jwt.UserClaims]](ctx, req.Storage, userCmdPath(account, name))
+	// get Users storage
+	user, err := getFromStorage[Parameters[jwt.UserClaims]](ctx, s, c.UserPath)
 	if err != nil {
-		return logical.ErrorResponse(JwtUserNotFound), err
+		return errors.New(JwtUserNotFound)
 	}
 
 	// no storage exists, create new
@@ -171,10 +182,58 @@ func (b *NatsBackend) AddUserCmd(ctx context.Context, s logical.Storage, config 
 		user = &Parameters[jwt.UserClaims]{}
 	}
 
-	// set the values
-	user.NKeyID = data.Get("NKeyID").(string)
+	// create user nkey
+	userKey, err := getNkey(ctx, s, User, c.NKeyID)
+	if err != nil {
+		return errors.New(NKeyStorageAccessError)
+	}
+	if userKey == nil {
+		userKey, err = createNkey(ctx, s, User, c.NKeyID)
+		if err != nil {
+			return err
+		}
+	}
 
-	return nil, nil
+	// convert signing key
+	convertedSigningKey, err := convertSeed(signingKey.Seed)
+	if err != nil {
+		return err
+	}
+
+	// convert account key
+	convertedUserKey, err := convertSeed(userKey.Seed)
+	if err != nil {
+		return err
+	}
+
+	accountNkey, err := getNkey(ctx, s, Account, c.AccountName)
+	if err != nil {
+		return err
+	}
+
+	if accountNkey == nil {
+		return err
+	}
+	convertedAccountKey, err := convertSeed(accountNkey.Seed)
+	if err != nil {
+		return err
+	}
+
+	// set the values
+	user.Name = c.Name
+	user.NKeyID = c.NKeyID
+	user.TokenID = c.Name
+	user.TokenClaims.IssuerAccount = convertedAccountKey.PublicKey
+	user.TokenClaims.Issuer = convertedSigningKey.PublicKey
+	user.TokenClaims.Subject = convertedUserKey.PublicKey
+
+	// store operator parameters
+	_, err = storeInStorage(ctx, s, c.UserPath, user)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (b *NatsBackend) pathReadUserCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
@@ -192,7 +251,26 @@ func (b *NatsBackend) pathReadUserCmd(ctx context.Context, req *logical.Request,
 		return logical.ErrorResponse("missing user name"), nil
 	}
 
-	return readOperation[Parameters[jwt.UserClaims]](ctx, req.Storage, userJwtPath(account, name))
+	// path := userCmdPath(account, name)
+	// param, err := getFromStorage[Parameters[jwt.UserClaims]](ctx, req.Storage, path)
+	// if err != nil {
+	// 	return logical.ErrorResponse(err.Error()), nil
+	// }
+	// if param == nil {
+	// 	return logical.ErrorResponse("user not found"), nil
+	// }
+
+	// var groupMap map[string]interface{}
+
+	// err = mapstructure.Decode(param, &groupMap)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return &logical.Response{
+	// 	Data: groupMap,
+	// }, nil
+	return readOperation[Parameters[jwt.UserClaims]](ctx, req.Storage, userCmdPath(account, name))
 }
 
 func (b *NatsBackend) pathDeleteUserCmd(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
@@ -204,8 +282,9 @@ func (b *NatsBackend) pathDeleteUserCmd(ctx context.Context, req *logical.Reques
 }
 
 func (b *NatsBackend) pathCmdUserList(ctx context.Context, req *logical.Request, d *framework.FieldData) (*logical.Response, error) {
-	accountName := d.Get("account_name").(string)
-	entries, err := req.Storage.List(ctx, "cmd/operator/account/"+accountName+"/user")
+	// accountName := d.Get("account_name").(string)
+	// entries, err := req.Storage.List(ctx, accountCmdPath(accountName)+"/user")
+	entries, err := req.Storage.List(ctx, req.Path)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), nil
 	}
