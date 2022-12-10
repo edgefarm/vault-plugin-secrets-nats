@@ -15,7 +15,7 @@ endif
 all: fmt build start
 
 build:
-	GOOS=$(OS) GOARCH="$(GOARCH)" go build -o vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" cmd/vault-plugin-secrets-nats/main.go
+	GOOS=$(OS) GOARCH="$(GOARCH)" go build -o build/vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" cmd/vault-plugin-secrets-nats/main.go
 
 account:
 	vault write nats-secrets/cmd/operator nkey_id=op
@@ -26,13 +26,13 @@ user:
 	vault read nats-secrets/cmd/operator/account/myAccount/user/myuser
 
 start:
-	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./vault/plugins -dev-listen-address=127.0.0.1:18200
+	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./build/vault/plugins -log-level=trace -dev-listen-address=127.0.0.1:8200
 
 enable:
 	vault secrets enable -path=nats-secrets vault-plugin-secrets-nats
 
 clean:
-	rm -f ./vault/plugins/vault-plugin-secrets-nats
+	rm -f ./build/vault/plugins/vault-plugin-secrets-nats
 
 fmt:
 	go fmt $$(go list ./...)

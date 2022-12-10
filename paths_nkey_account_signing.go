@@ -9,10 +9,10 @@ import (
 	"github.com/nats-io/nkeys"
 )
 
-func pathAccountNkey(b *NatsBackend) []*framework.Path {
+func pathAccountSigningNkey(b *NatsBackend) []*framework.Path {
 	return []*framework.Path{
 		{
-			Pattern: "nkey/operator/" + framework.GenericNameRegex("operator") + "/account/" + framework.GenericNameRegex("account") + "$",
+			Pattern: "nkey/operator/" + framework.GenericNameRegex("operator") + "/account/" + framework.GenericNameRegex("account") + "/signing/" + framework.GenericNameRegex("signing") + "$",
 			Fields: map[string]*framework.FieldSchema{
 				"operator": {
 					Type:        framework.TypeString,
@@ -24,41 +24,51 @@ func pathAccountNkey(b *NatsBackend) []*framework.Path {
 					Description: "account identifier",
 					Required:    false,
 				},
+				"signing": {
+					Type:        framework.TypeString,
+					Description: "signing identifier",
+					Required:    false,
+				},
 				"seed": {
 					Type:        framework.TypeString,
-					Description: "Nkey seed - Base64 encoded",
+					Description: "Nkey seed - Base64 Encoded.",
 					Required:    false,
 				},
 			},
 			Operations: map[logical.Operation]framework.OperationHandler{
 				logical.CreateOperation: &framework.PathOperation{
-					Callback: b.pathAddAccountNkey,
+					Callback: b.pathAddAccountSigningNkey,
 				},
 				logical.UpdateOperation: &framework.PathOperation{
-					Callback: b.pathAddAccountNkey,
+					Callback: b.pathAddAccountSigningNkey,
 				},
 				logical.ReadOperation: &framework.PathOperation{
-					Callback: b.pathReadAccountNkey,
+					Callback: b.pathReadAccountSigningNkey,
 				},
 				logical.DeleteOperation: &framework.PathOperation{
-					Callback: b.pathDeleteAccountNkey,
+					Callback: b.pathDeleteAccountSigningNkey,
 				},
 			},
-			HelpSynopsis:    `Manages account Nkeys.`,
-			HelpDescription: `On create/update: If no account Nkey seed is passed, a corresponding Nkey is generated.`,
+			HelpSynopsis:    `Manages account signing Nkey keypairs.`,
+			HelpDescription: `On Create or Update: If no account signing Nkey keypair is passed, a corresponding Nkey is generated.`,
 		},
 		{
-			Pattern: "nkey/operator/" + framework.GenericNameRegex("operator") + "/account/?$",
+			Pattern: "nkey/operator/" + framework.GenericNameRegex("operator") + "/account/" + framework.GenericNameRegex("account") + "/signing/?$",
 			Fields: map[string]*framework.FieldSchema{
 				"operator": {
 					Type:        framework.TypeString,
 					Description: "operator identifier",
 					Required:    false,
 				},
+				"account": {
+					Type:        framework.TypeString,
+					Description: "account identifier",
+					Required:    false,
+				},
 			},
 			Operations: map[logical.Operation]framework.OperationHandler{
 				logical.ListOperation: &framework.PathOperation{
-					Callback: b.pathListAccountNkeys,
+					Callback: b.pathListAccountSigningNkeys,
 				},
 			},
 			HelpSynopsis:    "pathRoleListHelpSynopsis",
@@ -67,7 +77,7 @@ func pathAccountNkey(b *NatsBackend) []*framework.Path {
 	}
 }
 
-func (b *NatsBackend) pathAddAccountNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *NatsBackend) pathAddAccountSigningNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	err := data.Validate()
 	if err != nil {
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
@@ -84,14 +94,14 @@ func (b *NatsBackend) pathAddAccountNkey(ctx context.Context, req *logical.Reque
 		create = true
 	}
 
-	err = addAccountNkey(ctx, create, req.Storage, params)
+	err = addAccountSigningNkey(ctx, create, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingNkeyFailedError), nil
 	}
 	return nil, nil
 }
 
-func (b *NatsBackend) pathReadAccountNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *NatsBackend) pathReadAccountSigningNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	err := data.Validate()
 	if err != nil {
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
@@ -103,7 +113,7 @@ func (b *NatsBackend) pathReadAccountNkey(ctx context.Context, req *logical.Requ
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	nkey, err := readAccountNkey(ctx, req.Storage, params)
+	nkey, err := readAccountSigningNkey(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(ReadingNkeyFailedError), nil
 	}
@@ -115,7 +125,7 @@ func (b *NatsBackend) pathReadAccountNkey(ctx context.Context, req *logical.Requ
 	return createResponseNkeyData(nkey)
 }
 
-func (b *NatsBackend) pathListAccountNkeys(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *NatsBackend) pathListAccountSigningNkeys(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	err := data.Validate()
 	if err != nil {
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
@@ -127,7 +137,7 @@ func (b *NatsBackend) pathListAccountNkeys(ctx context.Context, req *logical.Req
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	entries, err := listAccountNkeys(ctx, req.Storage, params)
+	entries, err := listAccountSigningNkeys(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(ListNkeysFailedError), nil
 	}
@@ -135,7 +145,7 @@ func (b *NatsBackend) pathListAccountNkeys(ctx context.Context, req *logical.Req
 	return logical.ListResponse(entries), nil
 }
 
-func (b *NatsBackend) pathDeleteAccountNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+func (b *NatsBackend) pathDeleteAccountSigningNkey(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	err := data.Validate()
 	if err != nil {
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
@@ -148,33 +158,33 @@ func (b *NatsBackend) pathDeleteAccountNkey(ctx context.Context, req *logical.Re
 	}
 
 	// when a key is given, store it
-	err = deleteAccountNkey(ctx, req.Storage, params)
+	err = deleteAccountSigningNkey(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(DeleteNkeyFailedError), nil
 	}
 	return nil, nil
 }
 
-func readAccountNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) (*NKeyStorage, error) {
-	path := getAccountNkeyPath(params.Operator, params.Account)
+func readAccountSigningNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) (*NKeyStorage, error) {
+	path := getAccountSigningNkeyPath(params.Operator, params.Account, params.Signing)
 	return readNkey(ctx, storage, path)
 }
 
-func deleteAccountNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) error {
-	path := getAccountNkeyPath(params.Operator, params.Account)
+func deleteAccountSigningNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) error {
+	path := getAccountSigningNkeyPath(params.Operator, params.Account, params.Signing)
 	return deleteNkey(ctx, storage, path)
 }
 
-func addAccountNkey(ctx context.Context, create bool, storage logical.Storage, params NkeyParameters) error {
-	path := getAccountNkeyPath(params.Operator, params.Account)
+func addAccountSigningNkey(ctx context.Context, create bool, storage logical.Storage, params NkeyParameters) error {
+	path := getAccountSigningNkeyPath(params.Operator, params.Account, params.Signing)
 	return addNkey(ctx, create, storage, path, nkeys.PrefixByteAccount, params)
 }
 
-func listAccountNkeys(ctx context.Context, storage logical.Storage, params NkeyParameters) ([]string, error) {
-	path := getAccountNkeyPath(params.Operator, "")
+func listAccountSigningNkeys(ctx context.Context, storage logical.Storage, params NkeyParameters) ([]string, error) {
+	path := getAccountSigningNkeyPath(params.Operator, params.Account, "")
 	return listNkeys(ctx, storage, path)
 }
 
-func getAccountNkeyPath(operator string, account string) string {
-	return "nkey/operator/" + operator + "/account/" + account
+func getAccountSigningNkeyPath(operator string, account string, signing string) string {
+	return "nkey/operator/" + operator + "/account/" + account + "/signing/" + signing
 }
