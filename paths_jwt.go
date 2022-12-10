@@ -7,292 +7,98 @@ import (
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
 )
 
-type JwtToken struct {
-	Jwt string `json:"jwt" mapstructure:"jwt"`
+// JWTStorage represents a JWT stored in the backend
+type JWTStorage struct {
+	JWT string `mapstructure:"jwt"`
 }
 
-func operatorJwtPath() string {
-	return "jwt/operator"
+// JWTParameters represents the parameters for a JWT operation
+type JWTParameters struct {
+	Operator   string `mapstructure:"operator,omitempty"`
+	Account    string `mapstructure:"account,omitempty"`
+	User       string `mapstructure:"user,omitempty"`
+	JWTStorage `mapstructure:",squash"`
 }
 
-func accountJwtPath(account string) string {
-	return "jwt/operator/account/" + account
+// JWTData represents the the data returned by a JWT operation
+type JWTData struct {
+	JWTStorage `mapstructure:",squash"`
 }
 
-func userJwtPath(account, user string) string {
-	return "jwt/operator/account" + account + "/user/" + user
-}
-
-// pathJWT extends the Vault API with a `/jwt/<category>`
-// endpoint for the natsBackend.
 func pathJWT(b *NatsBackend) []*framework.Path {
-	return []*framework.Path{
-		{
-			Pattern: "jwt/operator",
-			Fields: map[string]*framework.FieldSchema{
-				"jwt": {
-					Type:        framework.TypeString,
-					Description: "Operator JWT to import.",
-					Required:    false,
-				},
-			},
-			Operations: map[logical.Operation]framework.OperationHandler{
-				logical.CreateOperation: &framework.PathOperation{
-					Callback: b.pathAddOperatorJWT,
-				},
-				logical.UpdateOperation: &framework.PathOperation{
-					Callback: b.pathAddOperatorJWT,
-				},
-				logical.ReadOperation: &framework.PathOperation{
-					Callback: b.pathReadOperatorJWT,
-				},
-			},
-			ExistenceCheck:  b.pathJwtExistenceCheck,
-			HelpSynopsis:    `Manages operator JWT.`,
-			HelpDescription: ``,
-		},
-		{
-			Pattern: "jwt/operator/account/?$",
-			Fields: map[string]*framework.FieldSchema{
-				"name": {
-					Type:        framework.TypeString,
-					Description: "Account Name.",
-					Required:    false,
-				},
-				"jwt": {
-					Type:        framework.TypeString,
-					Description: "Account JWT to import.",
-					Required:    false,
-				},
-			},
-			Operations: map[logical.Operation]framework.OperationHandler{
-				logical.ListOperation: &framework.PathOperation{
-					Callback: b.pathListAccountJWT,
-				},
-			},
-			HelpSynopsis:    `Manages account JWT's.`,
-			HelpDescription: ``,
-		},
-		{
-			Pattern: "jwt/operator/account/" + framework.GenericNameRegex("name") + "$",
-			Fields: map[string]*framework.FieldSchema{
-				"name": {
-					Type:        framework.TypeString,
-					Description: "Account Name.",
-					Required:    false,
-				},
-				"jwt": {
-					Type:        framework.TypeString,
-					Description: "Account JWT to import.",
-					Required:    false,
-				},
-			},
-			Operations: map[logical.Operation]framework.OperationHandler{
-				logical.CreateOperation: &framework.PathOperation{
-					Callback: b.pathAddAccountJWT,
-				},
-				logical.UpdateOperation: &framework.PathOperation{
-					Callback: b.pathAddAccountJWT,
-				},
-				logical.ReadOperation: &framework.PathOperation{
-					Callback: b.pathReadAccountJWT,
-				},
-				logical.ListOperation: &framework.PathOperation{
-					Callback: b.pathListAccountJWT,
-				},
-			},
-			HelpSynopsis:    `Manages account JWT's.`,
-			HelpDescription: ``,
-		},
-		{
-			Pattern: "jwt/operator/account/" + framework.GenericNameRegex("account_name") + "/user/" + framework.GenericNameRegex("name") + "$",
-			Fields: map[string]*framework.FieldSchema{
-				"name": {
-					Type:        framework.TypeString,
-					Description: "User Name.",
-					Required:    false,
-				},
-				"account_name": {
-					Type:        framework.TypeString,
-					Description: "Account Name.",
-					Required:    false,
-				},
-				"jwt": {
-					Type:        framework.TypeString,
-					Description: "User JWT to import.",
-					Required:    false,
-				},
-			},
-			Operations: map[logical.Operation]framework.OperationHandler{
-				logical.CreateOperation: &framework.PathOperation{
-					Callback: b.pathAddUserJWT,
-				},
-				logical.UpdateOperation: &framework.PathOperation{
-					Callback: b.pathAddUserJWT,
-				},
-				logical.ReadOperation: &framework.PathOperation{
-					Callback: b.pathReadUserJWT,
-				},
-				logical.ListOperation: &framework.PathOperation{
-					Callback: b.pathListUserJWT,
-				},
-			},
-			HelpSynopsis:    `Manages user JWT's.`,
-			HelpDescription: ``,
-		},
-	}
+	paths := []*framework.Path{}
+	paths = append(paths, pathOperatorJWT(b)...)
+	paths = append(paths, pathUserJWT(b)...)
+	paths = append(paths, pathAccountJWT(b)...)
+	return paths
 }
 
-func (b *NatsBackend) pathJwtExistenceCheck(ctx context.Context, req *logical.Request, data *framework.FieldData) (bool, error) {
-	out, err := req.Storage.Get(ctx, req.Path)
-	if err != nil {
-		return false, fmt.Errorf(JwtExistenceCheckError+": %w", err)
-	}
-
-	return out != nil, nil
+func readJWT(ctx context.Context, storage logical.Storage, path string) (*JWTStorage, error) {
+	return getFromStorage[JWTStorage](ctx, storage, path)
 }
 
-func (b *NatsBackend) pathAddOperatorJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	var token string
-	if tokenParam, ok := data.GetOk("jwt"); ok {
-		token = tokenParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingUserNameError), nil
-	}
-	return nil, addOperatorJWT(ctx, req.Storage, token)
+func deleteJWT(ctx context.Context, storage logical.Storage, path string) error {
+	return deleteFromStorage(ctx, storage, path)
 }
 
-func (b *NatsBackend) pathAddAccountJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	var name string
-	if nameParam, ok := data.GetOk("name"); ok {
-		name = nameParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingAccountNameError), nil
+func createResponseJWTData(jwt *JWTStorage) (*logical.Response, error) {
+	d := &JWTData{
+		JWTStorage: *jwt,
 	}
 
-	var token string
-	if tokenParam, ok := data.GetOk("jwt"); ok {
-		token = tokenParam.(string)
-	} else if !ok {
-		return nil, fmt.Errorf(JwtMissingUserNameError)
-	}
-
-	return nil, addAccountJWT(ctx, req.Storage, token, name)
-}
-
-func (b *NatsBackend) pathAddUserJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	var account string
-	if accountParam, ok := data.GetOk("account_name"); ok {
-		account = accountParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingAccountNameError), nil
-	}
-
-	var name string
-	if nameParam, ok := data.GetOk("name"); ok {
-		name = nameParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingUserNameError), nil
-	}
-
-	var token string
-	if tokenParam, ok := data.GetOk("jwt"); ok {
-		token = tokenParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingUserNameError), nil
-	}
-
-	return nil, addUserJWT(ctx, req.Storage, token, account, name)
-}
-
-func (b *NatsBackend) pathReadOperatorJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	return readOperation[JwtToken](ctx, req.Storage, operatorJwtPath())
-}
-
-func (b *NatsBackend) pathReadAccountJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-
-	var name string
-	if nameParam, ok := data.GetOk("name"); ok {
-		name = nameParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingAccountNameError), nil
-	}
-
-	return readOperation[JwtToken](ctx, req.Storage, accountJwtPath(name))
-}
-
-func (b *NatsBackend) pathListAccountJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	entries, err := req.Storage.List(ctx, "jwt/operator/account/")
+	rval := map[string]interface{}{}
+	err := mapstructure.Decode(d, &rval)
 	if err != nil {
 		return nil, err
 	}
 
-	return logical.ListResponse(entries), nil
-}
-
-func (b *NatsBackend) pathReadUserJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	var account string
-	if accountParam, ok := data.GetOk("account_name"); ok {
-		account = accountParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingAccountNameError), nil
+	resp := &logical.Response{
+		Data: rval,
 	}
-
-	var name string
-	if nameParam, ok := data.GetOk("name"); ok {
-		name = nameParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingUserNameError), nil
-	}
-
-	return readOperation[JwtToken](ctx, req.Storage, userJwtPath(account, name))
+	return resp, nil
 }
 
-func (b *NatsBackend) pathListUserJWT(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
-	var account string
-	if accountParam, ok := data.GetOk("account_name"); ok {
-		account = accountParam.(string)
-	} else if !ok {
-		return logical.ErrorResponse(JwtMissingAccountNameError), nil
-	}
-
-	entries, err := req.Storage.List(ctx, "jwt/operator/account/"+account+"/user/")
-	if err != nil {
-		return logical.ErrorResponse(err.Error()), nil
-	}
-
-	return logical.ListResponse(entries), nil
-}
-
-func addOperatorJWT(ctx context.Context, s logical.Storage, token string) error {
-	return addJWT[jwt.OperatorClaims](ctx, s, token, operatorJwtPath())
-}
-
-func addAccountJWT(ctx context.Context, s logical.Storage, token string, account string) error {
-	return addJWT[jwt.AccountClaims](ctx, s, token, accountJwtPath(account))
-}
-
-func addUserJWT(ctx context.Context, s logical.Storage, token string, account string, user string) error {
-	return addJWT[jwt.UserClaims](ctx, s, token, userJwtPath(account, user))
-}
-
-func addJWT[T any, P interface{ *T }](ctx context.Context, s logical.Storage, token string, path string) error {
-	claims, err := jwt.Decode(token)
+func addJWT(ctx context.Context, create bool, storage logical.Storage, path string, params JWTParameters) error {
+	jwt, err := getFromStorage[JWTStorage](ctx, storage, path)
 	if err != nil {
 		return err
+	}
+
+	if jwt == nil {
+		if !create {
+			return fmt.Errorf("jwt does not exist")
+		}
+		jwt = &JWTStorage{}
+	}
+
+	jwt.JWT = params.JWT
+
+	// store the nkey
+	err = storeInStorage(ctx, storage, path, jwt)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func listJWTs(ctx context.Context, storage logical.Storage, path string) ([]string, error) {
+	return storage.List(ctx, path)
+}
+
+func validateJWT[T any, P interface{ *T }](token string) error {
+	claims, err := jwt.Decode(token)
+	if err != nil {
+		return fmt.Errorf("error decoding jwt: %s", err.Error())
 	}
 	_, ok := claims.(P)
 	if !ok {
-		return errors.New(JwtTokenHasWrongClaimTypeError)
+		return errors.New("jwt token has wrong claim type")
 	}
 
-	t := &JwtToken{}
-	t.Jwt = token
-	if _, err := storeInStorage(ctx, s, path, t); err != nil {
-		return err
-	}
 	return nil
 }

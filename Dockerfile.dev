@@ -1,0 +1,9 @@
+FROM ghcr.io/loft-sh/devspace-containers/go:1.18-alpine
+
+
+RUN mkdir -p /tmp/build && \
+    cd /tmp/build && \
+    wget https://releases.hashicorp.com/vault/1.12.1/vault_1.12.1_linux_amd64.zip && \
+    unzip vault_1.12.1_linux_amd64.zip && \
+    mv vault /usr/local/bin && \
+    rm -rf /tmp/build

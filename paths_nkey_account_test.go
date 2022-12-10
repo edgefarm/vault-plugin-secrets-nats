@@ -6,82 +6,162 @@ import (
 	"testing"
 
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCreateDeleteAccountNkeys(t *testing.T) {
+func TestCRUDAccountNKeys(t *testing.T) {
 	b, reqStorage := getTestBackend(t)
 
-	t.Run("Test delete account nkey", func(t *testing.T) {
-		_, err := b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.CreateOperation,
-			Path:      "nkey/account/key1",
+	t.Run("Test CRUD for account nkeys", func(t *testing.T) {
+
+		path := "nkey/operator/op1/account/acc1"
+
+		// first call read/delete/list withour creating the key
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      path,
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
+		assert.True(t, resp.IsError())
 
-		_, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.CreateOperation,
-			Path:      "nkey/account/key2",
-			Data:      map[string]interface{}{},
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      path,
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
 
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ListOperation,
+			Path:      "nkey/operator/op1/account",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+		assert.Equal(t, resp.Data, map[string]interface{}{})
+
+		// then create the key and read it
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+		assert.True(t, resp.Data["seed"].(string) != "")
+		assert.True(t, resp.Data["public_key"].(string) != "")
+		assert.True(t, resp.Data["private_key"].(string) != "")
+		assert.NoError(t, validateSeed(resp.Data["seed"].(string), nkeys.PrefixByteAccount))
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ListOperation,
+			Path:      "nkey/operator/op1/account",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+		assert.Equal(t, map[string]interface{}{"keys": []string{"acc1"}}, resp.Data)
+
+		// then delete the key and read it
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.True(t, resp.IsError())
+
+		// then recreate the key and read and delete it
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+	})
+
+	t.Run("Test CRUD for multiple account nkeys", func(t *testing.T) {
+		// create 3 keys
+		for i := 0; i < 3; i++ {
+			path := fmt.Sprintf("nkey/operator/op1/account/acc%d", i)
+			resp, err := b.HandleRequest(context.Background(), &logical.Request{
+				Operation: logical.CreateOperation,
+				Path:      path,
+				Storage:   reqStorage,
+			})
+			assert.NoError(t, err)
+			assert.False(t, resp.IsError())
+		}
+
+		// list the keys
 		resp, err := b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ListOperation,
-			Path:      "nkey/account",
-			Data:      map[string]interface{}{},
+			Path:      "nkey/operator/op1/account",
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, 2, len(resp.Data["keys"].([]string)))
-		assert.Contains(t, resp.Data["keys"].([]string), "key1")
-		assert.Contains(t, resp.Data["keys"].([]string), "key2")
-		fmt.Printf("resp: %+v", resp.Data)
+		assert.False(t, resp.IsError())
+		assert.Equal(t, map[string]interface{}{
+			"keys": []string{"acc0", "acc1", "acc2"},
+		}, resp.Data)
 
-		_, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.DeleteOperation,
-			Path:      "nkey/account/key1",
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
+		// delete the keys
+		for i := 0; i < 3; i++ {
+			path := fmt.Sprintf("nkey/operator/op1/account/acc%d", i)
+			resp, err := b.HandleRequest(context.Background(), &logical.Request{
+				Operation: logical.DeleteOperation,
+				Path:      path,
+				Storage:   reqStorage,
+			})
+			assert.NoError(t, err)
+			assert.False(t, resp.IsError())
+		}
 
+		// list the keys
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ListOperation,
-			Path:      "nkey/account",
-			Data:      map[string]interface{}{},
+			Path:      "nkey/operator/op1/account",
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(resp.Data["keys"].([]string)))
-		assert.Contains(t, resp.Data["keys"].([]string), "key2")
-		fmt.Printf("resp: %+v", resp.Data)
+		assert.False(t, resp.IsError())
+		assert.Equal(t, map[string]interface{}{}, resp.Data)
 
-		// Delete not existent key, should return no error but doesn't change anything
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.DeleteOperation,
-			Path:      "nkey/account/key3",
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
-		fmt.Printf("resp: %+v", resp)
-
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.DeleteOperation,
-			Path:      "nkey/account/key2",
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
-		fmt.Printf("resp: %+v", resp)
-
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.ListOperation,
-			Path:      "nkey/account",
-			Data:      map[string]interface{}{},
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
-		assert.Equal(t, resp.Data, map[string]interface{}{})
 	})
 }
