@@ -27,6 +27,13 @@ const (
 	DeleteNkeyFailedError  = "deleting nkey failed"
 	NkeyNotFoundError      = "nkey not found"
 
+	// CREDS
+	AddingCredsFailedError  = "adding creds failed"
+	ReadingCredsFailedError = "reading creds failed"
+	ListCredsFailedError    = "listing credss failed"
+	DeleteCredsFailedError  = "deleting creds failed"
+	CredsNotFoundError      = "creds not found"
+
 	// // Operator Errors
 	// OperatorNotConfiguredError      = "operator not configured"
 	// OperatorMissingError            = "missing operator"
