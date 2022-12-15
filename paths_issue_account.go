@@ -114,12 +114,7 @@ func (b *NatsBackend) pathAddAccountIssue(ctx context.Context, req *logical.Requ
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addAccountIssue(ctx, create, req.Storage, params)
+	err = addAccountIssue(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingIssueFailedError), nil
 	}
@@ -190,9 +185,9 @@ func (b *NatsBackend) pathDeleteAccountIssue(ctx context.Context, req *logical.R
 	return nil, nil
 }
 
-func addAccountIssue(ctx context.Context, create bool, storage logical.Storage, params IssueAccountParameters) error {
+func addAccountIssue(ctx context.Context, storage logical.Storage, params IssueAccountParameters) error {
 	// store issue
-	issue, err := storeAccountIssue(ctx, create, storage, params)
+	issue, err := storeAccountIssue(ctx, storage, params)
 	if err != nil {
 		return err
 	}
@@ -272,7 +267,7 @@ func deleteAccountIssue(ctx context.Context, storage logical.Storage, params Iss
 	return deleteFromStorage(ctx, storage, path)
 }
 
-func storeAccountIssue(ctx context.Context, create bool, storage logical.Storage, params IssueAccountParameters) (*IssueAccountStorage, error) {
+func storeAccountIssue(ctx context.Context, storage logical.Storage, params IssueAccountParameters) (*IssueAccountStorage, error) {
 	path := getAccountIssuePath(params.Operator, params.Account)
 
 	issue, err := getFromStorage[IssueAccountStorage](ctx, storage, path)
@@ -280,9 +275,6 @@ func storeAccountIssue(ctx context.Context, create bool, storage logical.Storage
 		return nil, err
 	}
 	if issue == nil {
-		if !create {
-			return nil, fmt.Errorf("issue does not exist")
-		}
 		issue = &IssueAccountStorage{}
 	} else {
 		// diff current and incomming signing keys
