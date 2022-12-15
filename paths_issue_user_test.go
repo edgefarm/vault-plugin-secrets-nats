@@ -66,7 +66,7 @@ func TestCRUDUserIssue(t *testing.T) {
 
 	})
 
-	t.Run("Test CRUD logic for account issuer", func(t *testing.T) {
+	t.Run("Test CRUD logic for user issuer", func(t *testing.T) {
 
 		/////////////////////////
 		// Prepare the test data
@@ -280,4 +280,144 @@ func TestCRUDUserIssue(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 	})
+
+	t.Run("Test issued nkeys, jwts and creds", func(t *testing.T) {
+
+		/////////////////////////
+		// Prepare the test data
+		/////////////////////////
+		var path string = "issue/operator/op1/account/ac1/user/us1"
+		var request map[string]interface{}
+
+		// first create operator issue to be able to create account issue
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "issue/operator/op1",
+			Storage:   reqStorage,
+			Data:      map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		// then create account issue to be able to create user issue
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "issue/operator/op1/account/ac1",
+			Storage:   reqStorage,
+			Data:      map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		//////////////////////////
+		// That will be requested
+		//////////////////////////
+		mapstructure.Decode(IssueUserParameters{}, &request)
+
+		/////////////////////////////
+		// create the issue only
+		// with defaults and read it
+		/////////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      path,
+			Storage:   reqStorage,
+			Data:      map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		//////////////////////////
+		// read the created issue
+		//////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		//////////////////////////
+		// read the nkey
+		//////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "nkey/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		//////////////////////////
+		// read the jwt
+		//////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "jwt/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		//////////////////////////
+		// read the creds
+		//////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "creds/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		/////////////////////////
+		// Then delete the issue
+		/////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		/////////////////////////////
+		// ... and try to read again
+		/////////////////////////////
+
+		//////////////////////////
+		// read the nkey
+		//////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "nkey/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.True(t, resp.IsError())
+
+		//////////////////////////
+		// read the jwt
+		//////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "jwt/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.True(t, resp.IsError())
+
+		//////////////////////////
+		// read the creds
+		//////////////////////////
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      "creds/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.True(t, resp.IsError())
+	})
+
 }
