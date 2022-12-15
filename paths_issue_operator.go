@@ -100,14 +100,9 @@ func (b *NatsBackend) pathAddOperatorIssue(ctx context.Context, req *logical.Req
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addOperatorIssue(ctx, create, req.Storage, params)
+	err = addOperatorIssue(ctx, req.Storage, params)
 	if err != nil {
-		return logical.ErrorResponse(AddingIssueFailedError), nil
+		return logical.ErrorResponse(AddingIssueFailedError + ":" + err.Error()), nil
 	}
 	return nil, nil
 }
@@ -170,9 +165,9 @@ func (b *NatsBackend) pathDeleteOperatorIssue(ctx context.Context, req *logical.
 	return nil, nil
 
 }
-func addOperatorIssue(ctx context.Context, create bool, storage logical.Storage, params IssueOperatorParameters) error {
+func addOperatorIssue(ctx context.Context, storage logical.Storage, params IssueOperatorParameters) error {
 	// store issue
-	issue, err := storeOperatorIssue(ctx, create, storage, params)
+	issue, err := storeOperatorIssue(ctx, storage, params)
 	if err != nil {
 		return err
 	}
@@ -271,7 +266,7 @@ func deleteOperatorIssue(ctx context.Context, storage logical.Storage, params Is
 	return deleteFromStorage(ctx, storage, path)
 }
 
-func storeOperatorIssue(ctx context.Context, create bool, storage logical.Storage, params IssueOperatorParameters) (*IssueOperatorStorage, error) {
+func storeOperatorIssue(ctx context.Context, storage logical.Storage, params IssueOperatorParameters) (*IssueOperatorStorage, error) {
 	path := getOperatorIssuePath(params.Operator)
 
 	issue, err := getFromStorage[IssueOperatorStorage](ctx, storage, path)
@@ -279,9 +274,6 @@ func storeOperatorIssue(ctx context.Context, create bool, storage logical.Storag
 		return nil, err
 	}
 	if issue == nil {
-		if !create {
-			return nil, fmt.Errorf("issue does not exist")
-		}
 		issue = &IssueOperatorStorage{}
 	} else {
 		// diff current and incomming signing keys
