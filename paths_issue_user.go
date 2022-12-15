@@ -209,6 +209,12 @@ func addUserIssue(ctx context.Context, storage logical.Storage, params IssueUser
 		return err
 	}
 
+	// create creds
+	err = issueUserCreds(ctx, storage, *issue)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -252,6 +258,17 @@ func deleteUserIssue(ctx context.Context, storage logical.Storage, params IssueU
 		User:     issue.User,
 	}
 	err = deleteUserJWT(ctx, storage, jwt)
+	if err != nil {
+		return err
+	}
+
+	// delete user creds
+	creds := CredsParameters{
+		Operator: issue.Operator,
+		Account:  issue.Account,
+		User:     issue.User,
+	}
+	err = deleteUserCreds(ctx, storage, creds)
 	if err != nil {
 		return err
 	}
@@ -381,6 +398,64 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 		User:     issue.User,
 		JWTStorage: JWTStorage{
 			JWT: token,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func issueUserCreds(ctx context.Context, storage logical.Storage, issue IssueUserStorage) error {
+
+	// receive user nkey seed
+	// to add to creds file
+	userNkey, err := readUserNkey(ctx, storage, NkeyParameters{
+		Operator: issue.Operator,
+		Account:  issue.Account,
+		User:     issue.User,
+	})
+	if err != nil {
+		return fmt.Errorf("could not read user nkey: %s", err)
+	}
+	if userNkey == nil {
+		return fmt.Errorf("user nkey does not exist")
+	}
+	userKeyPair, err := convertToKeyPair(userNkey.Seed)
+	if err != nil {
+		return err
+	}
+	seed, err := userKeyPair.Seed()
+	if err != nil {
+		return err
+	}
+
+	// receive jwt
+	userJwt, err := readUserJWT(ctx, storage, JWTParameters{
+		Operator: issue.Operator,
+		Account:  issue.Account,
+		User:     issue.User,
+	})
+	if err != nil {
+		return fmt.Errorf("could not read user jwt: %s", err)
+	}
+	if userJwt == nil {
+		return fmt.Errorf("user jwt does not exist")
+	}
+
+	// format creds
+	creds, err := jwt.FormatUserConfig(userJwt.JWT, seed)
+	if err != nil {
+		return fmt.Errorf("could not format user creds: %s", err)
+	}
+
+	// store creds
+	err = addUserCreds(ctx, true, storage, CredsParameters{
+		Operator: issue.Operator,
+		Account:  issue.Account,
+		User:     issue.User,
+		CredsStorage: CredsStorage{
+			Creds: string(creds),
 		},
 	})
 	if err != nil {
