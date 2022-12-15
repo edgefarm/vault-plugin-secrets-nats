@@ -47,6 +47,7 @@ func backend() *NatsBackend {
 			pathNkey(&b),
 			pathJWT(&b),
 			pathIssue(&b),
+			pathCreds(&b),
 			[]*framework.Path{},
 		),
 		Secrets: []*framework.Secret{
