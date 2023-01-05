@@ -8,27 +8,53 @@ import (
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
+	"github.com/nats-io/nkeys"
+	"github.com/rs/zerolog/log"
 )
 
 type IssueOperatorStorage struct {
-	Operator      string             `mapstructure:"operator"`
-	SystemAccount string             `mapstructure:"system_account"`
-	SigningKeys   []string           `mapstructure:"signing_keys"`
-	Claims        jwt.OperatorClaims `mapstructure:"operator_claims"`
+	Operator            string             `mapstructure:"operator"`
+	CreateSystemAccount bool               `mapstructure:"create_system_account"`
+	SystemAccount       string             `mapstructure:"system_account"`
+	SystemAccountUser   string             `mapstructure:"sys_user"`
+	SigningKeys         []string           `mapstructure:"signing_keys"`
+	SyncAccountServer   bool               `mapstructure:"sync_account_server"`
+	AccountServerURL    string             `mapstructure:"account_server_url"`
+	Claims              jwt.OperatorClaims `mapstructure:"operator_claims"`
 }
 
 type IssueOperatorParameters struct {
-	Operator      string             `mapstructure:"operator"`
-	SystemAccount string             `mapstructure:"system_account"`
-	SigningKeys   []string           `mapstructure:"signing_keys"`
-	Claims        jwt.OperatorClaims `mapstructure:"operator_claims"`
+	Operator            string             `mapstructure:"operator"`
+	CreateSystemAccount bool               `mapstructure:"create_system_account"`
+	SystemAccount       string             `mapstructure:"system_account"`
+	SystemAccountUser   string             `mapstructure:"system_user"`
+	SigningKeys         []string           `mapstructure:"signing_keys"`
+	AccountServerURL    string             `mapstructure:"account_server_url"`
+	SyncAccountServer   bool               `mapstructure:"sync_account_server"`
+	Claims              jwt.OperatorClaims `mapstructure:"operator_claims"`
 }
 
 type IssueOperatorData struct {
-	Operator      string             `mapstructure:"operator"`
-	SystemAccount string             `mapstructure:"system_account"`
-	SigningKeys   []string           `mapstructure:"signing_keys"`
-	Claims        jwt.OperatorClaims `mapstructure:"operator_claims"`
+	Operator            string              `mapstructure:"operator"`
+	CreateSystemAccount bool                `mapstructure:"create_system_account"`
+	SystemAccount       string              `mapstructure:"system_account"`
+	SystemAccountUser   string              `mapstructure:"system_account_user"`
+	SigningKeys         []string            `mapstructure:"signing_keys"`
+	AccountServerURL    string              `mapstructure:"account_server_url"`
+	SyncAccountServer   bool                `mapstructure:"sync_account_server"`
+	Claims              jwt.OperatorClaims  `mapstructure:"operator_claims"`
+	Status              IssueOperatorStatus `mapstructure:"status"`
+}
+
+type IssueOperatorStatus struct {
+	Operator          IssueStatus `mapstructure:"operator"`
+	SystemAccount     IssueStatus `mapstructure:"system_account"`
+	SystemAccountUser IssueStatus `mapstructure:"system_account_user"`
+}
+
+type IssueStatus struct {
+	Nkey bool `mapstructure:"nkey"`
+	JWT  bool `mapstructure:"jwt"`
 }
 
 func pathOperatorIssue(b *NatsBackend) []*framework.Path {
@@ -41,9 +67,19 @@ func pathOperatorIssue(b *NatsBackend) []*framework.Path {
 					Description: "operator identifier",
 					Required:    false,
 				},
+				"create_system_account": {
+					Type:        framework.TypeBool,
+					Description: "Create system account (default: false)",
+					Required:    false,
+				},
 				"system_account": {
 					Type:        framework.TypeString,
-					Description: "Use nkey id to use as system account",
+					Description: "Account id to use as system account (default: SYS)",
+					Required:    false,
+				},
+				"system_account_user": {
+					Type:        framework.TypeString,
+					Description: "User id to use as system account user (default: SYS). Used to sync account jwt's with account server.",
 					Required:    false,
 				},
 				"singning_keys": {
@@ -54,6 +90,16 @@ func pathOperatorIssue(b *NatsBackend) []*framework.Path {
 				"operator_claims": {
 					Type:        framework.TypeMap,
 					Description: "Operator claims (jwt.OperatorClaims from github.com/nats-io/jwt/v2)",
+					Required:    false,
+				},
+				"account_server_url": {
+					Type:        framework.TypeString,
+					Description: "Account server url",
+					Required:    false,
+				},
+				"sync_account_server": {
+					Type:        framework.TypeBool,
+					Description: "Sync account jwt's with account server",
 					Required:    false,
 				},
 			},
@@ -128,7 +174,8 @@ func (b *NatsBackend) pathReadOperatorIssue(ctx context.Context, req *logical.Re
 		return logical.ErrorResponse(IssueNotFoundError), nil
 	}
 
-	return createResponseIssueOperatorData(issue)
+	status := getIssueOperatorStatus(ctx, req.Storage, issue)
+	return createResponseIssueOperatorData(issue, status)
 }
 
 func (b *NatsBackend) pathListOperatorIssues(ctx context.Context, req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
@@ -172,8 +219,13 @@ func addOperatorIssue(ctx context.Context, storage logical.Storage, params Issue
 		return err
 	}
 
+	return refreshOperator(ctx, storage, issue)
+}
+
+func refreshOperator(ctx context.Context, storage logical.Storage, issue *IssueOperatorStorage) error {
+
 	// create nkey and signing nkeys
-	err = issueOperatorNKeys(ctx, storage, *issue)
+	err := issueOperatorNkeys(ctx, storage, *issue)
 	if err != nil {
 		return err
 	}
@@ -184,6 +236,13 @@ func addOperatorIssue(ctx context.Context, storage logical.Storage, params Issue
 		return err
 	}
 
+	if issue.CreateSystemAccount {
+		// create system account
+		err := issueSystemAccount(ctx, storage, *issue)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -230,23 +289,21 @@ func deleteOperatorIssue(ctx context.Context, storage logical.Storage, params Is
 		}
 	}
 
-	// delete system account nkey
-	// this is only done when no issue did take ownership of the system account
-	// if an issue did take ownership of the system account, the system account nkey is deleted when the issue is deleted
-	accountIssue, err := readAccountIssue(ctx, storage, IssueAccountParameters{
-		Operator: issue.Operator,
-		Account:  issue.SystemAccount,
-	})
-	if err != nil {
-		return err
-	}
-	if accountIssue == nil {
-		// no issue took ownership of the system account nkey
-		nkey := NkeyParameters{
+	// if generated, delete system account
+	if issue.CreateSystemAccount {
+		err := deleteUserIssue(ctx, storage, IssueUserParameters{
 			Operator: issue.Operator,
 			Account:  issue.SystemAccount,
+			User:     issue.SystemAccountUser,
+		})
+		if err != nil {
+			return err
 		}
-		err := deleteAccountNkey(ctx, storage, nkey)
+
+		err = deleteAccountIssue(ctx, storage, IssueAccountParameters{
+			Operator: issue.Operator,
+			Account:  issue.SystemAccount,
+		})
 		if err != nil {
 			return err
 		}
@@ -299,26 +356,24 @@ func storeOperatorIssue(ctx context.Context, storage logical.Storage, params Iss
 			}
 		}
 
-		// diff current and incomming system account
-		if issue.SystemAccount != "" && issue.SystemAccount != params.SystemAccount {
+		if issue.CreateSystemAccount {
+			// diff current and incomming system account
+			// delete removed system account
+			if issue.SystemAccount != "" && issue.SystemAccount != params.SystemAccount {
 
-			// delete system account nkey
-			// this is only done when no issue did take ownership of the system account
-			// if an issue did take ownership of the system account, the system account nkey is deleted when the issue is deleted
-			accountIssue, err := readAccountIssue(ctx, storage, IssueAccountParameters{
-				Operator: issue.Operator,
-				Account:  issue.SystemAccount,
-			})
-			if err != nil {
-				return nil, err
-			}
-			if accountIssue == nil {
-				// no issue took ownership of the system account nkey
-				nkey := NkeyParameters{
+				err := deleteUserIssue(ctx, storage, IssueUserParameters{
 					Operator: issue.Operator,
 					Account:  issue.SystemAccount,
+					User:     issue.SystemAccountUser,
+				})
+				if err != nil {
+					return nil, err
 				}
-				err := deleteAccountNkey(ctx, storage, nkey)
+
+				err = deleteAccountIssue(ctx, storage, IssueAccountParameters{
+					Operator: issue.Operator,
+					Account:  issue.SystemAccount,
+				})
 				if err != nil {
 					return nil, err
 				}
@@ -328,8 +383,20 @@ func storeOperatorIssue(ctx context.Context, storage logical.Storage, params Iss
 
 	issue.Claims = params.Claims
 	issue.Operator = params.Operator
+	issue.CreateSystemAccount = params.CreateSystemAccount
 	issue.SystemAccount = params.SystemAccount
+	issue.SystemAccountUser = params.SystemAccountUser
+	if issue.CreateSystemAccount {
+		if issue.SystemAccount == "" {
+			issue.SystemAccount = "SYS"
+		}
+		if issue.SystemAccountUser == "" {
+			issue.SystemAccountUser = "SYS"
+		}
+	}
 	issue.SigningKeys = params.SigningKeys
+	issue.SyncAccountServer = params.SyncAccountServer
+	issue.AccountServerURL = params.AccountServerURL
 	err = storeInStorage(ctx, storage, path, issue)
 	if err != nil {
 		return nil, err
@@ -337,7 +404,9 @@ func storeOperatorIssue(ctx context.Context, storage logical.Storage, params Iss
 	return issue, nil
 }
 
-func issueOperatorNKeys(ctx context.Context, storage logical.Storage, issue IssueOperatorStorage) error {
+func issueOperatorNkeys(ctx context.Context, storage logical.Storage, issue IssueOperatorStorage) error {
+
+	var refreshAccounts bool
 
 	// issue operator nkey
 	p := NkeyParameters{
@@ -352,6 +421,7 @@ func issueOperatorNKeys(ctx context.Context, storage logical.Storage, issue Issu
 		if err != nil {
 			return err
 		}
+		refreshAccounts = true
 	}
 
 	// issue operator siginig nkeys
@@ -369,30 +439,23 @@ func issueOperatorNKeys(ctx context.Context, storage logical.Storage, issue Issu
 			if err != nil {
 				return err
 			}
+			refreshAccounts = true
 		}
 	}
 
-	// make sure system account nkey exists
-	// this is a chicken and egg problem
-	// the system account nkey is needed to issue the operator jwt
-	if issue.SystemAccount != "" {
-		data, err := readAccountNkey(ctx, storage, NkeyParameters{
-			Operator: issue.Operator,
-			Account:  issue.SystemAccount,
-		})
+	if refreshAccounts {
+		// force update of all existing accounts
+		// so they can use the new operator nkey to sign their jwt
+		log.Info().Str("operator", issue.Operator).Msg("managed nkeys modified, all accounts will be updated")
+		err = updateAccountIssues(ctx, storage, issue)
 		if err != nil {
-			return fmt.Errorf("could not read system account nkey: %s", err)
-		}
-		if data == nil {
-			addAccountNkey(ctx, true, storage, NkeyParameters{
-				Operator: issue.Operator,
-				Account:  issue.SystemAccount,
-			})
-			if err != nil {
-				return fmt.Errorf("could not create system account nkey: %s", err)
-			}
+			log.Err(err).Str("operator", issue.Operator).Msg("failed to update accounts")
+			return err
 		}
 	}
+
+	log.Info().
+		Str("operator", issue.Operator).Msgf("nkey created/updated")
 
 	return nil
 }
@@ -405,7 +468,7 @@ func issueOperatorJWT(ctx context.Context, storage logical.Storage, issue IssueO
 	if err != nil {
 		return fmt.Errorf("could not read operator nkey: %s", err)
 	}
-	operatorKeyPair, err := convertToKeyPair(data.Seed)
+	operatorKeyPair, err := nkeys.FromSeed(data.Seed)
 	if err != nil {
 		return err
 	}
@@ -425,16 +488,19 @@ func issueOperatorJWT(ctx context.Context, storage logical.Storage, issue IssueO
 			return fmt.Errorf("could not read system account nkey: %s", err)
 		}
 		if data == nil {
-			return fmt.Errorf("system account does not exist")
-		}
-		sysAccountKeyPair, err := convertToKeyPair(data.Seed)
-		if err != nil {
-			return err
-		}
-
-		sysAccountPublicKey, err = sysAccountKeyPair.PublicKey()
-		if err != nil {
-			return err
+			log.Warn().
+				Str("operator", issue.Operator).
+				Msgf("system account nkey does not exist: %s - Cannot create jwt.", issue.SystemAccount)
+			return nil
+		} else {
+			sysAccountKeyPair, err := nkeys.FromSeed(data.Seed)
+			if err != nil {
+				return fmt.Errorf("could not convert system account nkey to kp: %s", err)
+			}
+			sysAccountPublicKey, err = sysAccountKeyPair.PublicKey()
+			if err != nil {
+				return fmt.Errorf("could not extract pulic key from system account nkey: %s", err)
+			}
 		}
 	}
 
@@ -446,10 +512,15 @@ func issueOperatorJWT(ctx context.Context, storage logical.Storage, issue IssueO
 			Signing:  signingKey,
 		})
 		if err != nil {
-			return fmt.Errorf("could not read signing key")
+			return err
 		}
-
-		signingKeyPair, err := convertToKeyPair(data.Seed)
+		if data == nil {
+			log.Warn().
+				Str("operator", issue.Operator).
+				Msgf("signing nkey does not exist: %s - Cannot create jwt.", signingKey)
+			continue
+		}
+		signingKeyPair, err := nkeys.FromSeed(data.Seed)
 		if err != nil {
 			return err
 		}
@@ -480,6 +551,88 @@ func issueOperatorJWT(ctx context.Context, storage logical.Storage, issue IssueO
 	if err != nil {
 		return err
 	}
+
+	log.Info().
+		Str("operator", issue.Operator).
+		Msgf("jwt created/updated")
+	return nil
+}
+
+func issueSystemAccount(ctx context.Context, storage logical.Storage, issue IssueOperatorStorage) error {
+
+	// create system account jwt and nkey
+	err := addAccountIssue(ctx, storage, IssueAccountParameters{
+		Operator: issue.Operator,
+		Account:  issue.SystemAccount,
+		Claims: jwt.AccountClaims{
+			Account: jwt.Account{
+				Imports: []*jwt.Import{},
+				Exports: []*jwt.Export{
+					{
+						Name:                 "account-monitoring-services",
+						Subject:              "$SYS.REQ.ACCOUNT.*.*",
+						Type:                 jwt.Service,
+						ResponseType:         jwt.ResponseTypeStream,
+						AccountTokenPosition: 4,
+						Info: jwt.Info{
+							Description: `Request account specific monitoring services for: SUBSZ, CONNZ, LEAFZ, JSZ and INFO`,
+							InfoURL:     "https://docs.nats.io/nats-server/configuration/sys_accounts",
+						},
+					},
+					{
+						Name:                 "account-monitoring-streams",
+						Subject:              "$SYS.ACCOUNT.*.>",
+						Type:                 jwt.Stream,
+						AccountTokenPosition: 3,
+						Info: jwt.Info{
+							Description: `Account specific monitoring stream`,
+							InfoURL:     "https://docs.nats.io/nats-server/configuration/sys_accounts",
+						},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// create system account user jwt and nkey
+	err = addUserIssue(ctx, storage, IssueUserParameters{
+		Operator: issue.Operator,
+		Account:  issue.SystemAccount,
+		User:     issue.SystemAccountUser,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func updateAccountIssues(ctx context.Context, storage logical.Storage, issue IssueOperatorStorage) error {
+
+	accounts, err := listAccountIssues(ctx, storage, issue.Operator)
+	if err != nil {
+		return err
+	}
+
+	for _, account := range accounts {
+		acc, err := readAccountIssue(ctx, storage, IssueAccountParameters{
+			Operator: issue.Operator,
+			Account:  account,
+		})
+		if err != nil {
+			return err
+		}
+		if acc == nil {
+			return err
+		}
+		err = refreshAccount(ctx, storage, acc)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -487,13 +640,73 @@ func getOperatorIssuePath(operator string) string {
 	return "issue/operator/" + operator
 }
 
-func createResponseIssueOperatorData(issue *IssueOperatorStorage) (*logical.Response, error) {
+func getIssueOperatorStatus(ctx context.Context, storage logical.Storage, issue *IssueOperatorStorage) *IssueOperatorStatus {
+
+	var status IssueOperatorStatus
+
+	// operator status
+	nkey, err := readOperatorNkey(ctx, storage, NkeyParameters{
+		Operator: issue.Operator,
+	})
+	if err == nil && nkey != nil {
+		status.Operator.Nkey = true
+	}
+	jwt, err := readOperatorJWT(ctx, storage, JWTParameters{
+		Operator: issue.Operator,
+	})
+	if err == nil && jwt != nil {
+		status.Operator.JWT = true
+	}
+
+	// sys account status
+	nkey, err = readAccountNkey(ctx, storage, NkeyParameters{
+		Operator: issue.Operator,
+		Account:  issue.SystemAccount,
+	})
+	if err == nil && nkey != nil {
+		status.SystemAccount.Nkey = true
+
+	}
+	jwt, err = readAccountJWT(ctx, storage, JWTParameters{
+		Operator: issue.Operator,
+		Account:  issue.SystemAccount,
+	})
+	if err == nil && jwt != nil {
+		status.SystemAccount.JWT = true
+	}
+
+	// sys account user status
+	nkey, err = readUserNkey(ctx, storage, NkeyParameters{
+		Operator: issue.Operator,
+		Account:  issue.SystemAccount,
+		User:     issue.SystemAccountUser,
+	})
+	if err == nil && nkey != nil {
+		status.SystemAccountUser.Nkey = true
+	}
+	jwt, err = readUserJWT(ctx, storage, JWTParameters{
+		Operator: issue.Operator,
+		Account:  issue.SystemAccount,
+		User:     issue.SystemAccountUser,
+	})
+	if err == nil && jwt != nil {
+		status.SystemAccountUser.JWT = true
+	}
+	return &status
+}
+
+func createResponseIssueOperatorData(issue *IssueOperatorStorage, status *IssueOperatorStatus) (*logical.Response, error) {
 
 	data := &IssueOperatorData{
-		Operator:      issue.Operator,
-		SystemAccount: issue.SystemAccount,
-		SigningKeys:   issue.SigningKeys,
-		Claims:        issue.Claims,
+		Operator:            issue.Operator,
+		CreateSystemAccount: issue.CreateSystemAccount,
+		SystemAccount:       issue.SystemAccount,
+		SystemAccountUser:   issue.SystemAccountUser,
+		AccountServerURL:    issue.AccountServerURL,
+		SyncAccountServer:   issue.SyncAccountServer,
+		SigningKeys:         issue.SigningKeys,
+		Claims:              issue.Claims,
+		Status:              *status,
 	}
 
 	rval := map[string]interface{}{}

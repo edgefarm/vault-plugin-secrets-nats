@@ -2,6 +2,7 @@ package natsbackend
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -62,7 +63,10 @@ func TestCRUDAccountNKeys(t *testing.T) {
 		assert.True(t, resp.Data["seed"].(string) != "")
 		assert.True(t, resp.Data["public_key"].(string) != "")
 		assert.True(t, resp.Data["private_key"].(string) != "")
-		assert.NoError(t, validateSeed(resp.Data["seed"].(string), nkeys.PrefixByteAccount))
+		seed := resp.Data["seed"].(string)
+		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		assert.NoError(t, err)
+		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteAccount))
 
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ListOperation,

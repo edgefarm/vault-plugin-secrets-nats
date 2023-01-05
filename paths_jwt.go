@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -87,7 +88,18 @@ func addJWT(ctx context.Context, create bool, storage logical.Storage, path stri
 }
 
 func listJWTs(ctx context.Context, storage logical.Storage, path string) ([]string, error) {
-	return storage.List(ctx, path)
+	l, err := storage.List(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	var sorted []string
+	re := regexp.MustCompile(`\/`)
+	for _, v := range l {
+		if !re.Match([]byte(v)) {
+			sorted = append(sorted, v)
+		}
+	}
+	return sorted, nil
 }
 
 func validateJWT[T any, P interface{ *T }](token string) error {

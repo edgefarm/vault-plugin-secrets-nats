@@ -2,6 +2,7 @@ package natsbackend
 
 import (
 	"context"
+	"regexp"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -16,5 +17,16 @@ func pathIssue(b *NatsBackend) []*framework.Path {
 }
 
 func listIssues(ctx context.Context, storage logical.Storage, path string) ([]string, error) {
-	return storage.List(ctx, path)
+	l, err := storage.List(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	var issues []string
+	re := regexp.MustCompile(`\/`)
+	for _, v := range l {
+		if !re.Match([]byte(v)) {
+			issues = append(issues, v)
+		}
+	}
+	return issues, nil
 }

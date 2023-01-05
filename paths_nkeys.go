@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -14,23 +15,23 @@ import (
 
 // NkeySorage represents a Nkey stored in the backend
 type NKeyStorage struct {
-	Seed string `mapstructure:"seed,omitempty"`
+	Seed []byte `mapstructure:"seed,omitempty"`
 }
 
 // NkeyParameters represents the parameters for a Nkey operation
 type NkeyParameters struct {
-	Operator    string `mapstructure:"operator,omitempty"`
-	Signing     string `mapstructure:"signing,omitempty"`
-	Account     string `mapstructure:"account,omitempty"`
-	User        string `mapstructure:"user,omitempty"`
-	NKeyStorage `mapstructure:",squash"`
+	Operator string `mapstructure:"operator,omitempty"`
+	Signing  string `mapstructure:"signing,omitempty"`
+	Account  string `mapstructure:"account,omitempty"`
+	User     string `mapstructure:"user,omitempty"`
+	Seed     string `mapstructure:"seed,omitempty"`
 }
 
 // NkeyData represents the the data returned by a Nkey operation
 type NkeyData struct {
-	NKeyStorage `mapstructure:",squash"`
-	PublicKey   string `mapstructure:"public_key,omitempty"`
-	PrivateKey  string `mapstructure:"private_key,omitempty"`
+	PublicKey  string `mapstructure:"public_key,omitempty"`
+	PrivateKey string `mapstructure:"private_key,omitempty"`
+	Seed       string `mapstructure:"seed,omitempty"`
 }
 
 // pathNkey extends the Vault API with a `/nkey/<category>`
@@ -46,30 +47,24 @@ func pathNkey(b *NatsBackend) []*framework.Path {
 }
 
 // createSeed creates a new Nkey seed
-func createSeed(prefix nkeys.PrefixByte) (string, error) {
+func createSeed(prefix nkeys.PrefixByte) ([]byte, error) {
 
 	// create operator keypair
 	keypair, err := nkeys.CreatePair(prefix)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// store seed
 	seed, err := keypair.Seed()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return base64.StdEncoding.EncodeToString(seed), nil
+	return seed, nil
 }
 
-func validateSeed(seed string, expected nkeys.PrefixByte) error {
-	// decode seed
-	decodedSeed, err := base64.StdEncoding.DecodeString(seed)
-	if err != nil {
-		return err
-	}
-
-	prefix, _, err := nkeys.DecodeSeed(decodedSeed)
+func validateSeed(seed []byte, expected nkeys.PrefixByte) error {
+	prefix, _, err := nkeys.DecodeSeed(seed)
 	if err != nil {
 		return err
 	}
@@ -81,21 +76,21 @@ func validateSeed(seed string, expected nkeys.PrefixByte) error {
 	return nil
 }
 
-func convertToKeyPair(seed string) (nkeys.KeyPair, error) {
-	// decode seed
-	decodedSeed, err := base64.StdEncoding.DecodeString(seed)
-	if err != nil {
-		return nil, err
-	}
+// func convertToKeyPair(seed string) (nkeys.KeyPair, error) {
+// 	// decode seed
+// 	decodedSeed, err := base64.StdEncoding.DecodeString(seed)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// create keypair
-	keypair, err := nkeys.FromSeed(decodedSeed)
-	if err != nil {
-		return nil, err
-	}
+// 	// create keypair
+// 	keypair, err := nkeys.FromSeed(decodedSeed)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	return keypair, nil
-}
+// 	return keypair, nil
+// }
 
 func readNkey(ctx context.Context, storage logical.Storage, path string) (*NKeyStorage, error) {
 	return getFromStorage[NKeyStorage](ctx, storage, path)
@@ -107,7 +102,7 @@ func deleteNkey(ctx context.Context, storage logical.Storage, path string) error
 
 func toNkeyData(nkey *NKeyStorage) (*NkeyData, error) {
 	// convert seed into public/private key data structure
-	keypair, err := convertToKeyPair(nkey.Seed)
+	keypair, err := nkeys.FromSeed(nkey.Seed)
 	if err != nil {
 		return nil, err
 	}
@@ -124,9 +119,9 @@ func toNkeyData(nkey *NKeyStorage) (*NkeyData, error) {
 
 	// create response
 	d := &NkeyData{
-		NKeyStorage: *nkey,
-		PublicKey:   pub,
-		PrivateKey:  base64.StdEncoding.EncodeToString(private),
+		Seed:       base64.StdEncoding.EncodeToString(nkey.Seed),
+		PublicKey:  pub,
+		PrivateKey: base64.StdEncoding.EncodeToString(private),
 	}
 	return d, nil
 }
@@ -151,7 +146,6 @@ func createResponseNkeyData(nkey *NKeyStorage) (*logical.Response, error) {
 }
 
 func addNkey(ctx context.Context, create bool, storage logical.Storage, path string, prefix nkeys.PrefixByte, params NkeyParameters) error {
-	seed := params.Seed
 	nkey, err := getFromStorage[NKeyStorage](ctx, storage, path)
 	if err != nil {
 		return err
@@ -163,10 +157,15 @@ func addNkey(ctx context.Context, create bool, storage logical.Storage, path str
 		}
 		nkey = &NKeyStorage{}
 	}
-	nkey.Seed = seed
+	if params.Seed != "" {
+		nkey.Seed, err = base64.StdEncoding.DecodeString(params.Seed)
+		if err != nil {
+			return fmt.Errorf("cannot decode seed as base64")
+		}
+	}
 
 	// when no seed is given, generate a new one
-	if nkey.Seed == "" {
+	if nkey.Seed == nil {
 		nkey.Seed, err = createSeed(prefix)
 		if err != nil {
 			return err
@@ -189,5 +188,16 @@ func addNkey(ctx context.Context, create bool, storage logical.Storage, path str
 }
 
 func listNkeys(ctx context.Context, storage logical.Storage, path string) ([]string, error) {
-	return storage.List(ctx, path)
+	l, err := storage.List(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	var sorted []string
+	re := regexp.MustCompile(`\/`)
+	for _, v := range l {
+		if !re.Match([]byte(v)) {
+			sorted = append(sorted, v)
+		}
+	}
+	return sorted, nil
 }
