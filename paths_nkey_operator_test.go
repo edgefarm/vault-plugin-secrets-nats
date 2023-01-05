@@ -17,17 +17,17 @@ func genOperatorSeed() string {
 	return base64.StdEncoding.EncodeToString([]byte(seed))
 }
 
-func genAccountSeed() string {
-	key, _ := nkeys.CreateAccount()
-	seed, _ := key.Seed()
-	return base64.StdEncoding.EncodeToString([]byte(seed))
-}
+// func genAccountSeed() string {
+// 	key, _ := nkeys.CreateAccount()
+// 	seed, _ := key.Seed()
+// 	return base64.StdEncoding.EncodeToString([]byte(seed))
+// }
 
-func genUserSeed() string {
-	key, _ := nkeys.CreateUser()
-	seed, _ := key.Seed()
-	return base64.StdEncoding.EncodeToString([]byte(seed))
-}
+// func genUserSeed() string {
+// 	key, _ := nkeys.CreateUser()
+// 	seed, _ := key.Seed()
+// 	return base64.StdEncoding.EncodeToString([]byte(seed))
+// }
 
 func TestCRUDOperatorNKeys(t *testing.T) {
 	b, reqStorage := getTestBackend(t)
@@ -81,7 +81,11 @@ func TestCRUDOperatorNKeys(t *testing.T) {
 		assert.True(t, resp.Data["seed"].(string) != "")
 		assert.True(t, resp.Data["public_key"].(string) != "")
 		assert.True(t, resp.Data["private_key"].(string) != "")
-		assert.NoError(t, validateSeed(resp.Data["seed"].(string), nkeys.PrefixByteOperator))
+
+		seed := resp.Data["seed"].(string)
+		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		assert.NoError(t, err)
+		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
 
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ListOperation,
@@ -93,7 +97,7 @@ func TestCRUDOperatorNKeys(t *testing.T) {
 		assert.Equal(t, map[string]interface{}{"keys": []string{"Op1"}}, resp.Data)
 
 		// then update the key and read it
-		seed := genOperatorSeed()
+		seed = genOperatorSeed()
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.UpdateOperation,
 			Path:      path,
@@ -115,7 +119,10 @@ func TestCRUDOperatorNKeys(t *testing.T) {
 		assert.True(t, resp.Data["seed"].(string) == seed)
 		assert.True(t, resp.Data["public_key"].(string) != "")
 		assert.True(t, resp.Data["private_key"].(string) != "")
-		assert.NoError(t, validateSeed(resp.Data["seed"].(string), nkeys.PrefixByteOperator))
+		seed = resp.Data["seed"].(string)
+		seedBytes, err = base64.StdEncoding.DecodeString(seed)
+		assert.NoError(t, err)
+		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
 
 		// then delete the key and read it
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{

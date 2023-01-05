@@ -2,6 +2,7 @@ package natsbackend
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"testing"
@@ -72,6 +73,20 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			SigningKeys:   []string(nil),
 			SystemAccount: "",
 			Claims:        jwt.OperatorClaims{},
+			Status: IssueOperatorStatus{
+				Operator: IssueStatus{
+					Nkey: true,
+					JWT:  true,
+				},
+				SystemAccount: IssueStatus{
+					Nkey: false,
+					JWT:  false,
+				},
+				SystemAccountUser: IssueStatus{
+					Nkey: false,
+					JWT:  false,
+				},
+			},
 		}
 
 		/////////////////////////////
@@ -123,6 +138,20 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Claims: jwt.OperatorClaims{
 				Operator: jwt.Operator{
 					AccountServerURL: "http://localhost:9090",
+				},
+			},
+			Status: IssueOperatorStatus{
+				Operator: IssueStatus{
+					Nkey: true,
+					JWT:  true,
+				},
+				SystemAccount: IssueStatus{
+					Nkey: false,
+					JWT:  false,
+				},
+				SystemAccountUser: IssueStatus{
+					Nkey: false,
+					JWT:  false,
 				},
 			},
 		}
@@ -309,7 +338,10 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		assert.True(t, resp.Data["seed"].(string) != "")
 		assert.True(t, resp.Data["public_key"].(string) != "")
 		assert.True(t, resp.Data["private_key"].(string) != "")
-		assert.NoError(t, validateSeed(resp.Data["seed"].(string), nkeys.PrefixByteOperator))
+		seed := resp.Data["seed"].(string)
+		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		assert.NoError(t, err)
+		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
 
 		// read a signing key
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -320,7 +352,10 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) != "")
-		assert.NoError(t, validateSeed(resp.Data["seed"].(string), nkeys.PrefixByteOperator))
+		seed = resp.Data["seed"].(string)
+		seedBytes, err = base64.StdEncoding.DecodeString(seed)
+		assert.NoError(t, err)
+		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
 
 		// read the jwt
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -419,7 +454,10 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) != "")
-		assert.NoError(t, validateSeed(resp.Data["seed"].(string), nkeys.PrefixByteOperator))
+		seed := resp.Data["seed"].(string)
+		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		assert.NoError(t, err)
+		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
 
 		// list the signing keys
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -488,7 +526,8 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Path:      path,
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"system_account": "sys",
+				"system_account":        "sys",
+				"create_system_account": true,
 			},
 		})
 		assert.NoError(t, err)
@@ -510,7 +549,8 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Path:      path,
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"system_account": "sys2",
+				"system_account":        "sys2",
+				"create_system_account": true,
 			},
 		})
 		assert.NoError(t, err)

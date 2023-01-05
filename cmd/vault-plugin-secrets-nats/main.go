@@ -4,12 +4,16 @@ import (
 	"os"
 
 	nats "github.com/edgefarm/vault-plugin-secrets-nats"
-	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/sdk/plugin"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+
 	apiClientMeta := &api.PluginAPIClientMeta{}
 	flags := apiClientMeta.FlagSet()
 	flags.Parse(os.Args[1:])
@@ -22,9 +26,7 @@ func main() {
 		TLSProviderFunc:    tlsProviderFunc,
 	})
 	if err != nil {
-		logger := hclog.New(&hclog.LoggerOptions{})
-
-		logger.Error("plugin shutting down", "error", err)
+		log.Error().Err(err).Msg("plugin shutting down")
 		os.Exit(1)
 	}
 }
