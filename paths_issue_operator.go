@@ -15,8 +15,6 @@ import (
 type IssueOperatorStorage struct {
 	Operator            string             `mapstructure:"operator"`
 	CreateSystemAccount bool               `mapstructure:"create_system_account"`
-	SystemAccount       string             `mapstructure:"system_account"`
-	SystemAccountUser   string             `mapstructure:"sys_user"`
 	SigningKeys         []string           `mapstructure:"signing_keys"`
 	SyncAccountServer   bool               `mapstructure:"sync_account_server"`
 	AccountServerURL    string             `mapstructure:"account_server_url"`
@@ -26,8 +24,6 @@ type IssueOperatorStorage struct {
 type IssueOperatorParameters struct {
 	Operator            string             `mapstructure:"operator"`
 	CreateSystemAccount bool               `mapstructure:"create_system_account"`
-	SystemAccount       string             `mapstructure:"system_account"`
-	SystemAccountUser   string             `mapstructure:"system_user"`
 	SigningKeys         []string           `mapstructure:"signing_keys"`
 	AccountServerURL    string             `mapstructure:"account_server_url"`
 	SyncAccountServer   bool               `mapstructure:"sync_account_server"`
@@ -37,8 +33,6 @@ type IssueOperatorParameters struct {
 type IssueOperatorData struct {
 	Operator            string              `mapstructure:"operator"`
 	CreateSystemAccount bool                `mapstructure:"create_system_account"`
-	SystemAccount       string              `mapstructure:"system_account"`
-	SystemAccountUser   string              `mapstructure:"system_account_user"`
 	SigningKeys         []string            `mapstructure:"signing_keys"`
 	AccountServerURL    string              `mapstructure:"account_server_url"`
 	SyncAccountServer   bool                `mapstructure:"sync_account_server"`
@@ -72,16 +66,16 @@ func pathOperatorIssue(b *NatsBackend) []*framework.Path {
 					Description: "Create system account (default: false)",
 					Required:    false,
 				},
-				"system_account": {
-					Type:        framework.TypeString,
-					Description: "Account id to use as system account (default: SYS)",
-					Required:    false,
-				},
-				"system_account_user": {
-					Type:        framework.TypeString,
-					Description: "User id to use as system account user (default: SYS). Used to sync account jwt's with account server.",
-					Required:    false,
-				},
+				// "system_account": {
+				// 	Type:        framework.TypeString,
+				// 	Description: "Account id to use as system account (default: SYS)",
+				// 	Required:    false,
+				// },
+				// "system_account_user": {
+				// 	Type:        framework.TypeString,
+				// 	Description: "User id to use as system account user (default: SYS). Used to sync account jwt's with account server.",
+				// 	Required:    false,
+				// },
 				"singning_keys": {
 					Type:        framework.TypeCommaStringSlice,
 					Description: "Signing key ids to use for signing operator jwt",
@@ -222,6 +216,41 @@ func addOperatorIssue(ctx context.Context, storage logical.Storage, params Issue
 	return refreshOperator(ctx, storage, issue)
 }
 
+func refreshAccountResolvers(ctx context.Context, storage logical.Storage, issue *IssueOperatorStorage) error {
+	pushUser, err := readUserIssue(ctx, storage, IssueUserParameters{
+		Operator: issue.Operator,
+		Account:  DefaultSysAccountName,
+		User:     DefaultPushUser,
+	})
+	if err != nil {
+		return err
+	}
+	if pushUser != nil {
+		if pushUser.Status.User.JWT {
+			accounts, err := listAccountIssues(ctx, storage, issue.Operator)
+			if err != nil {
+				return err
+			}
+			for _, account := range accounts {
+				err = refreshAccountResolver(ctx, storage, IssueAccountStorage{
+					Operator: issue.Operator,
+					Account:  account,
+				})
+				if err != nil {
+					return err
+				}
+			}
+		} else {
+			// todo warning push user does not exist
+			log.Warn().Str("operator", issue.Operator).Msg("cannot refresh account resolvers, push user has no JWT yet")
+		}
+	} else {
+		// todo warning does not exist
+		log.Warn().Str("operator", issue.Operator).Msg("cannot refresh account resolvers, push user does not exist")
+	}
+	return nil
+}
+
 func refreshOperator(ctx context.Context, storage logical.Storage, issue *IssueOperatorStorage) error {
 
 	// create nkey and signing nkeys
@@ -293,8 +322,8 @@ func deleteOperatorIssue(ctx context.Context, storage logical.Storage, params Is
 	if issue.CreateSystemAccount {
 		err := deleteUserIssue(ctx, storage, IssueUserParameters{
 			Operator: issue.Operator,
-			Account:  issue.SystemAccount,
-			User:     issue.SystemAccountUser,
+			Account:  DefaultSysAccountName,
+			User:     DefaultPushUser,
 		})
 		if err != nil {
 			return err
@@ -302,7 +331,7 @@ func deleteOperatorIssue(ctx context.Context, storage logical.Storage, params Is
 
 		err = deleteAccountIssue(ctx, storage, IssueAccountParameters{
 			Operator: issue.Operator,
-			Account:  issue.SystemAccount,
+			Account:  DefaultSysAccountName,
 		})
 		if err != nil {
 			return err
@@ -355,45 +384,11 @@ func storeOperatorIssue(ctx context.Context, storage logical.Storage, params Iss
 				}
 			}
 		}
-
-		if issue.CreateSystemAccount {
-			// diff current and incomming system account
-			// delete removed system account
-			if issue.SystemAccount != "" && issue.SystemAccount != params.SystemAccount {
-
-				err := deleteUserIssue(ctx, storage, IssueUserParameters{
-					Operator: issue.Operator,
-					Account:  issue.SystemAccount,
-					User:     issue.SystemAccountUser,
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				err = deleteAccountIssue(ctx, storage, IssueAccountParameters{
-					Operator: issue.Operator,
-					Account:  issue.SystemAccount,
-				})
-				if err != nil {
-					return nil, err
-				}
-			}
-		}
 	}
 
 	issue.Claims = params.Claims
 	issue.Operator = params.Operator
 	issue.CreateSystemAccount = params.CreateSystemAccount
-	issue.SystemAccount = params.SystemAccount
-	issue.SystemAccountUser = params.SystemAccountUser
-	if issue.CreateSystemAccount {
-		if issue.SystemAccount == "" {
-			issue.SystemAccount = "SYS"
-		}
-		if issue.SystemAccountUser == "" {
-			issue.SystemAccountUser = "SYS"
-		}
-	}
 	issue.SigningKeys = params.SigningKeys
 	issue.SyncAccountServer = params.SyncAccountServer
 	issue.AccountServerURL = params.AccountServerURL
@@ -479,28 +474,26 @@ func issueOperatorJWT(ctx context.Context, storage logical.Storage, issue IssueO
 
 	// receive public key of system account
 	sysAccountPublicKey := ""
-	if issue.SystemAccount != "" {
-		data, err = readAccountNkey(ctx, storage, NkeyParameters{
-			Operator: issue.Operator,
-			Account:  issue.SystemAccount,
-		})
+	data, err = readAccountNkey(ctx, storage, NkeyParameters{
+		Operator: issue.Operator,
+		Account:  DefaultSysAccountName,
+	})
+	if err != nil {
+		return fmt.Errorf("could not read system account nkey: %s", err)
+	}
+	if data != nil {
+		// log.Warn().
+		// 	Str("operator", issue.Operator).
+		// 	Msgf("system account nkey does not exist: %s - Cannot create jwt.", DefaultSysAccountName)
+		// return nil
+		// } else {
+		sysAccountKeyPair, err := nkeys.FromSeed(data.Seed)
 		if err != nil {
-			return fmt.Errorf("could not read system account nkey: %s", err)
+			return fmt.Errorf("could not convert system account nkey to kp: %s", err)
 		}
-		if data == nil {
-			log.Warn().
-				Str("operator", issue.Operator).
-				Msgf("system account nkey does not exist: %s - Cannot create jwt.", issue.SystemAccount)
-			return nil
-		} else {
-			sysAccountKeyPair, err := nkeys.FromSeed(data.Seed)
-			if err != nil {
-				return fmt.Errorf("could not convert system account nkey to kp: %s", err)
-			}
-			sysAccountPublicKey, err = sysAccountKeyPair.PublicKey()
-			if err != nil {
-				return fmt.Errorf("could not extract pulic key from system account nkey: %s", err)
-			}
+		sysAccountPublicKey, err = sysAccountKeyPair.PublicKey()
+		if err != nil {
+			return fmt.Errorf("could not extract pulic key from system account nkey: %s", err)
 		}
 	}
 
@@ -559,11 +552,10 @@ func issueOperatorJWT(ctx context.Context, storage logical.Storage, issue IssueO
 }
 
 func issueSystemAccount(ctx context.Context, storage logical.Storage, issue IssueOperatorStorage) error {
-
 	// create system account jwt and nkey
 	err := addAccountIssue(ctx, storage, IssueAccountParameters{
 		Operator: issue.Operator,
-		Account:  issue.SystemAccount,
+		Account:  DefaultSysAccountName,
 		Claims: jwt.AccountClaims{
 			Account: jwt.Account{
 				Imports: []*jwt.Import{},
@@ -600,8 +592,8 @@ func issueSystemAccount(ctx context.Context, storage logical.Storage, issue Issu
 	// create system account user jwt and nkey
 	err = addUserIssue(ctx, storage, IssueUserParameters{
 		Operator: issue.Operator,
-		Account:  issue.SystemAccount,
-		User:     issue.SystemAccountUser,
+		Account:  DefaultSysAccountName,
+		User:     DefaultPushUser,
 	})
 	if err != nil {
 		return err
@@ -611,7 +603,6 @@ func issueSystemAccount(ctx context.Context, storage logical.Storage, issue Issu
 }
 
 func updateAccountIssues(ctx context.Context, storage logical.Storage, issue IssueOperatorStorage) error {
-
 	accounts, err := listAccountIssues(ctx, storage, issue.Operator)
 	if err != nil {
 		return err
@@ -641,7 +632,6 @@ func getOperatorIssuePath(operator string) string {
 }
 
 func getIssueOperatorStatus(ctx context.Context, storage logical.Storage, issue *IssueOperatorStorage) *IssueOperatorStatus {
-
 	var status IssueOperatorStatus
 
 	// operator status
@@ -661,7 +651,7 @@ func getIssueOperatorStatus(ctx context.Context, storage logical.Storage, issue 
 	// sys account status
 	nkey, err = readAccountNkey(ctx, storage, NkeyParameters{
 		Operator: issue.Operator,
-		Account:  issue.SystemAccount,
+		Account:  DefaultSysAccountName,
 	})
 	if err == nil && nkey != nil {
 		status.SystemAccount.Nkey = true
@@ -669,7 +659,7 @@ func getIssueOperatorStatus(ctx context.Context, storage logical.Storage, issue 
 	}
 	jwt, err = readAccountJWT(ctx, storage, JWTParameters{
 		Operator: issue.Operator,
-		Account:  issue.SystemAccount,
+		Account:  DefaultSysAccountName,
 	})
 	if err == nil && jwt != nil {
 		status.SystemAccount.JWT = true
@@ -678,16 +668,16 @@ func getIssueOperatorStatus(ctx context.Context, storage logical.Storage, issue 
 	// sys account user status
 	nkey, err = readUserNkey(ctx, storage, NkeyParameters{
 		Operator: issue.Operator,
-		Account:  issue.SystemAccount,
-		User:     issue.SystemAccountUser,
+		Account:  DefaultSysAccountName,
+		User:     DefaultPushUser,
 	})
 	if err == nil && nkey != nil {
 		status.SystemAccountUser.Nkey = true
 	}
 	jwt, err = readUserJWT(ctx, storage, JWTParameters{
 		Operator: issue.Operator,
-		Account:  issue.SystemAccount,
-		User:     issue.SystemAccountUser,
+		Account:  DefaultSysAccountName,
+		User:     DefaultPushUser,
 	})
 	if err == nil && jwt != nil {
 		status.SystemAccountUser.JWT = true
@@ -696,12 +686,9 @@ func getIssueOperatorStatus(ctx context.Context, storage logical.Storage, issue 
 }
 
 func createResponseIssueOperatorData(issue *IssueOperatorStorage, status *IssueOperatorStatus) (*logical.Response, error) {
-
 	data := &IssueOperatorData{
 		Operator:            issue.Operator,
 		CreateSystemAccount: issue.CreateSystemAccount,
-		SystemAccount:       issue.SystemAccount,
-		SystemAccountUser:   issue.SystemAccountUser,
 		AccountServerURL:    issue.AccountServerURL,
 		SyncAccountServer:   issue.SyncAccountServer,
 		SigningKeys:         issue.SigningKeys,

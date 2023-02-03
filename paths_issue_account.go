@@ -237,6 +237,11 @@ func refreshAccount(ctx context.Context, storage logical.Storage, issue *IssueAc
 		return err
 	}
 
+	_, err = storeAccountIssueUpdate(ctx, storage, issue)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -298,6 +303,16 @@ func deleteAccountIssue(ctx context.Context, storage logical.Storage, params Iss
 	// delete account issue
 	path := getAccountIssuePath(issue.Operator, issue.Account)
 	return deleteFromStorage(ctx, storage, path)
+}
+
+func storeAccountIssueUpdate(ctx context.Context, storage logical.Storage, issue *IssueAccountStorage) (*IssueAccountStorage, error) {
+	path := getAccountIssuePath(issue.Operator, issue.Account)
+
+	err := storeInStorage(ctx, storage, path, issue)
+	if err != nil {
+		return nil, err
+	}
+	return issue, nil
 }
 
 func storeAccountIssue(ctx context.Context, storage logical.Storage, params IssueAccountParameters) (*IssueAccountStorage, error) {
@@ -366,7 +381,9 @@ func issueAccountNKeys(ctx context.Context, storage logical.Storage, issue Issue
 		if err != nil {
 			return err
 		}
-		refreshTheOperator = true
+		if issue.Account == DefaultSysAccountName {
+			refreshTheOperator = true
+		}
 		refreshUsers = true
 	}
 
@@ -597,11 +614,6 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 			Str("operator", issue.Operator).Str("account", issue.Account).
 			Msgf("account server url is not set - can't sync account server.")
 		return nil
-	} else if op.SystemAccount == "" || op.SystemAccountUser == "" {
-		log.Warn().
-			Str("operator", issue.Operator).Str("account", issue.Account).
-			Msgf("system account and system account user must be set - can't sync account server.")
-		return nil
 	}
 
 	// read account jwt
@@ -621,8 +633,8 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 	// read system account user jwt
 	sysUserJWT, err := readUserJWT(ctx, storage, JWTParameters{
 		Operator: issue.Operator,
-		Account:  op.SystemAccount,
-		User:     op.SystemAccountUser,
+		Account:  DefaultSysAccountName,
+		User:     DefaultPushUser,
 	})
 	if err != nil {
 		return err
@@ -636,8 +648,8 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 	// read system account user nkey
 	sysUserNkey, err := readUserNkey(ctx, storage, NkeyParameters{
 		Operator: issue.Operator,
-		Account:  op.SystemAccount,
-		User:     op.SystemAccountUser,
+		Account:  DefaultSysAccountName,
+		User:     DefaultPushUser,
 	})
 	if err != nil {
 		return err

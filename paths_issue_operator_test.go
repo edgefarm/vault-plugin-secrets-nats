@@ -69,10 +69,9 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		// That will be expected
 		//////////////////////////
 		expected = IssueOperatorData{
-			Operator:      "op1",
-			SigningKeys:   []string(nil),
-			SystemAccount: "",
-			Claims:        jwt.OperatorClaims{},
+			Operator:    "op1",
+			SigningKeys: []string(nil),
+			Claims:      jwt.OperatorClaims{},
 			Status: IssueOperatorStatus{
 				Operator: IssueStatus{
 					Nkey: true,
@@ -526,7 +525,6 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Path:      path,
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"system_account":        "sys",
 				"create_system_account": true,
 			},
 		})
@@ -541,30 +539,7 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
-		assert.Equal(t, []string{"sys"}, resp.Data["keys"])
-
-		// update with another system account
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.UpdateOperation,
-			Path:      path,
-			Storage:   reqStorage,
-			Data: map[string]interface{}{
-				"system_account":        "sys2",
-				"create_system_account": true,
-			},
-		})
-		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
-
-		// list the account nkeys
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.ListOperation,
-			Path:      "nkey/operator/opsys/account",
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
-		assert.Equal(t, []string{"sys2"}, resp.Data["keys"])
+		assert.Equal(t, []string{DefaultSysAccountName}, resp.Data["keys"])
 
 		// delete the issue
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -574,57 +549,5 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
-
-		// list the account nkeys
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.ListOperation,
-			Path:      "nkey/operator/opsys/account",
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
-		assert.Equal(t, nil, resp.Data["keys"])
-
-		// create with system account
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.CreateOperation,
-			Path:      "issue/operator/opsys",
-			Storage:   reqStorage,
-			Data: map[string]interface{}{
-				"system_account": "sys",
-			},
-		})
-		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
-
-		// take ownership of the system account nkey
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.CreateOperation,
-			Path:      "issue/operator/opsys/account/sys",
-			Storage:   reqStorage,
-			Data:      map[string]interface{}{},
-		})
-		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
-
-		// delete the issue
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.DeleteOperation,
-			Path:      path,
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
-
-		// list the account nkeys
-		resp, err = b.HandleRequest(context.Background(), &logical.Request{
-			Operation: logical.ListOperation,
-			Path:      "nkey/operator/opsys/account",
-			Storage:   reqStorage,
-		})
-		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
-		assert.Equal(t, []string{"sys"}, resp.Data["keys"])
 	})
-
 }
