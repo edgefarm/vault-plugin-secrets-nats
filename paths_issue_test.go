@@ -45,8 +45,6 @@ func TestNatsWithAccountServer(t *testing.T) {
 		Operator:            "operator",
 		SigningKeys:         []string(nil),
 		CreateSystemAccount: true,
-		SystemAccount:       "SYS",
-		SystemAccountUser:   "SYS",
 		AccountServerURL:    "nats://localhost:4222",
 		SyncAccountServer:   true,
 		Claims:              jwt.OperatorClaims{},
@@ -101,7 +99,7 @@ func TestNatsWithAccountServer(t *testing.T) {
 	/////////////////////////////
 	resp, err = b.HandleRequest(context.Background(), &logical.Request{
 		Operation: logical.ReadOperation,
-		Path:      onIssue + "/account/SYS",
+		Path:      onIssue + "/account/" + DefaultSysAccountName,
 		Storage:   reqStorage,
 	})
 	assert.NoError(t, err)
@@ -112,7 +110,7 @@ func TestNatsWithAccountServer(t *testing.T) {
 	//------------------------
 	expectedAccount = IssueAccountData{
 		Operator:      "operator",
-		Account:       "SYS",
+		Account:       DefaultSysAccountName,
 		UseSigningKey: "",
 		SigningKeys:   []string(nil),
 		Claims: jwt.AccountClaims{

@@ -17,19 +17,31 @@ all: fmt build start
 build:
 	GOOS=$(OS) GOARCH="$(GOARCH)" go build -o build/vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" cmd/vault-plugin-secrets-nats/main.go
 
+operator:
+	vault write -force nats-secrets/issue/operator/myop
+	vault read nats-secrets/issue/operator/myop
+
+sysaccount:
+	vault write -force nats-secrets/issue/operator/myop/account/sys
+	vault read nats-secrets/issue/operator/myop/account/sys
+
+pushuser:
+	vault write -force nats-secrets/issue/operator/myop/account/sys/user/default-push
+	vault read nats-secrets/issue/operator/myop/account/sys/user/default-push
+
 account:
-	vault write nats-secrets/cmd/operator nkey_id=op
-	vault write nats-secrets/cmd/operator/account/myAccount nkey_id=myAccountKey
+	vault write -force nats-secrets/issue/operator/myop/account/myaccount
+	vault read nats-secrets/issue/operator/myop/account/myaccount
 
 user:
-	vault write nats-secrets/cmd/operator/account/myAccount/user/myuser nkey_id=myuser
-	vault read nats-secrets/cmd/operator/account/myAccount/user/myuser
+	vault write -force nats-secrets/issue/operator/myop/account/myaccount/user/myuser
+	vault read nats-secrets/issue/operator/myop/account/myaccount/user/myuser
 
 start:
 	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./build/vault/plugins -log-level=trace -dev-listen-address=127.0.0.1:8200
 
 enable:
-	vault secrets enable -path=nats-secrets vault-plugin-secrets-nats
+	VAULT_ADDR='http://127.0.0.1:8200' vault secrets enable -path=nats-secrets vault-plugin-secrets-nats
 
 clean:
 	rm -f ./build/vault/plugins/vault-plugin-secrets-nats

@@ -230,6 +230,35 @@ func refreshUser(ctx context.Context, storage logical.Storage, issue *IssueUserS
 
 	updateUserStatus(ctx, storage, issue)
 
+	_, err = storeUserIssueUpdate(ctx, storage, issue)
+	if err != nil {
+		return err
+	}
+
+	if issue.User == DefaultPushUser {
+		// force update of operator
+		// so he gets updates from sys account
+		op, err := readOperatorIssue(ctx, storage, IssueOperatorParameters{
+			Operator: issue.Operator,
+		})
+		if err != nil {
+			return err
+		} else if op == nil {
+			log.Warn().Str("operator", issue.Operator).Str("account", issue.Account).Msg("cannot refresh operator: operator issue does not exist")
+			return nil
+		}
+
+		err = refreshAccountResolvers(ctx, storage, op)
+		if err != nil {
+			return err
+		}
+	}
+
+	// // store issue
+	// issue, err = storeUserIssue(ctx, storage, issue.)
+	// if err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
@@ -291,6 +320,16 @@ func deleteUserIssue(ctx context.Context, storage logical.Storage, params IssueU
 	// delete user issue
 	path := getUserIssuePath(issue.Operator, issue.Account, issue.User)
 	return deleteFromStorage(ctx, storage, path)
+}
+
+func storeUserIssueUpdate(ctx context.Context, storage logical.Storage, issue *IssueUserStorage) (*IssueUserStorage, error) {
+	path := getUserIssuePath(issue.Operator, issue.Account, issue.User)
+
+	err := storeInStorage(ctx, storage, path, issue)
+	if err != nil {
+		return nil, err
+	}
+	return issue, nil
 }
 
 func storeUserIssue(ctx context.Context, storage logical.Storage, params IssueUserParameters) (*IssueUserStorage, error) {
