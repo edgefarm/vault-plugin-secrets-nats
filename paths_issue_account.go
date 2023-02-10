@@ -2,53 +2,54 @@ package natsbackend
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/resolver"
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
-	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/rs/zerolog/log"
+
+	v1alpha1 "github.com/edgefarm/vault-plugin-secrets-nats/pkg/claims/account/v1alpha1"
 )
 
 type IssueAccountStorage struct {
-	Operator      string             `mapstructure:"operator"`
-	Account       string             `mapstructure:"account"`
-	UseSigningKey string             `mapstructure:"use_signing_key"`
-	SigningKeys   []string           `mapstructure:"signing_keys"`
-	Claims        jwt.AccountClaims  `mapstructure:"account_claims"`
-	Status        IssueAccountStatus `mapstructure:"status"`
+	Operator      string                 `json:"operator"`
+	Account       string                 `json:"account"`
+	UseSigningKey string                 `json:"useSigningKey"`
+	Claims        v1alpha1.AccountClaims `json:"claims"`
+	Status        IssueAccountStatus     `json:"status"`
 }
 
+// IssueAccountParameters is the user facing interface for configuring an account issue.
+// Using pascal case on purpose.
 type IssueAccountParameters struct {
-	Operator      string            `mapstructure:"operator"`
-	Account       string            `mapstructure:"account"`
-	UseSigningKey string            `mapstructure:"use_signing_key"`
-	SigningKeys   []string          `mapstructure:"signing_keys"`
-	Claims        jwt.AccountClaims `mapstructure:"account_claims"`
+	Operator      string                 `json:"operator"`
+	Account       string                 `json:"account"`
+	UseSigningKey string                 `json:"useSigningKey"`
+	Claims        v1alpha1.AccountClaims `json:"claims"`
 }
 
 type IssueAccountData struct {
-	Operator      string             `mapstructure:"operator"`
-	Account       string             `mapstructure:"account"`
-	UseSigningKey string             `mapstructure:"use_signing_key"`
-	SigningKeys   []string           `mapstructure:"signing_keys"`
-	Claims        jwt.AccountClaims  `mapstructure:"account_claims"`
-	Status        IssueAccountStatus `mapstructure:"status"`
+	Operator      string                 `json:"operator"`
+	Account       string                 `json:"account"`
+	UseSigningKey string                 `json:"useSigningKey"`
+	Claims        v1alpha1.AccountClaims `json:"claims"`
+	Status        IssueAccountStatus     `json:"status"`
 }
 
 type IssueAccountStatus struct {
-	Account       IssueStatus         `mapstructure:"account"`
-	AccountServer AccountServerStatus `mapstructure:"account_server"`
+	Account       IssueStatus         `json:"account"`
+	AccountServer AccountServerStatus `json:"accountServer"`
 }
 
 type AccountServerStatus struct {
-	Synced   bool  `mapstructure:"synced"`
-	LastSync int64 `mapstructure:"last_sync"`
+	Synced   bool  `Status:"synced"`
+	LastSync int64 `Status:"lastSync"`
 }
 
 func pathAccountIssue(b *NatsBackend) []*framework.Path {
@@ -66,17 +67,12 @@ func pathAccountIssue(b *NatsBackend) []*framework.Path {
 					Description: "account identifier",
 					Required:    false,
 				},
-				"use_signing_key": {
+				"useSigningKey": {
 					Type:        framework.TypeString,
 					Description: "Explicitly specified operator signing key to sign the account",
 					Required:    false,
 				},
-				"signing_keys": {
-					Type:        framework.TypeCommaStringSlice,
-					Description: "Signing keys to use for signing account jwt",
-					Required:    false,
-				},
-				"account_claims": {
+				"claims": {
 					Type:        framework.TypeMap,
 					Description: "Account claims (jwt.AccountClaims from github.com/nats-io/jwt/v2)",
 					Required:    false,
@@ -125,12 +121,12 @@ func (b *NatsBackend) pathAddAccountIssue(ctx context.Context, req *logical.Requ
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
 	}
 
-	var params IssueAccountParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	jsonString, err := json.Marshal(data.Raw)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
-
+	params := IssueAccountParameters{}
+	json.Unmarshal(jsonString, &params)
 	err = addAccountIssue(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingIssueFailedError), nil
@@ -144,11 +140,12 @@ func (b *NatsBackend) pathReadAccountIssue(ctx context.Context, req *logical.Req
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
 	}
 
-	var params IssueAccountParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	jsonString, err := json.Marshal(data.Raw)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
+	params := IssueAccountParameters{}
+	json.Unmarshal(jsonString, &params)
 
 	issue, err := readAccountIssue(ctx, req.Storage, params)
 	if err != nil {
@@ -168,11 +165,12 @@ func (b *NatsBackend) pathListAccountIssue(ctx context.Context, req *logical.Req
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
 	}
 
-	var params IssueAccountParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	jsonString, err := json.Marshal(data.Raw)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
+	params := IssueAccountParameters{}
+	json.Unmarshal(jsonString, &params)
 
 	entries, err := listAccountIssues(ctx, req.Storage, params.Operator)
 	if err != nil {
@@ -188,11 +186,12 @@ func (b *NatsBackend) pathDeleteAccountIssue(ctx context.Context, req *logical.R
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
 	}
 
-	var params IssueAccountParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	jsonString, err := json.Marshal(data.Raw)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
+	params := IssueAccountParameters{}
+	json.Unmarshal(jsonString, &params)
 
 	// delete issue and all related nkeys and jwt
 	err = deleteAccountIssue(ctx, req.Storage, params)
@@ -227,7 +226,7 @@ func refreshAccount(ctx context.Context, storage logical.Storage, issue *IssueAc
 	}
 
 	// update resolver
-	err = refreshAccountResolver(ctx, storage, *issue)
+	err = refreshAccountResolverPush(ctx, storage, *issue)
 	if err != nil {
 		return err
 	}
@@ -267,6 +266,11 @@ func deleteAccountIssue(ctx context.Context, storage logical.Storage, params Iss
 		return nil
 	}
 
+	err = refreshAccountResolverDelete(ctx, storage, *issue)
+	if err != nil {
+		return err
+	}
+
 	// delete account nkey
 	nkey := NkeyParameters{
 		Operator: issue.Operator,
@@ -278,7 +282,7 @@ func deleteAccountIssue(ctx context.Context, storage logical.Storage, params Iss
 	}
 
 	// delete account siginig nkeys
-	for _, signingKey := range issue.SigningKeys {
+	for _, signingKey := range issue.Claims.SigningKeys {
 		nkey := NkeyParameters{
 			Operator: issue.Operator,
 			Account:  issue.Account,
@@ -327,7 +331,7 @@ func storeAccountIssue(ctx context.Context, storage logical.Storage, params Issu
 	} else {
 		// diff current and incomming signing keys
 		// delete removed signing keys
-		for _, signingKey := range issue.SigningKeys {
+		for _, signingKey := range issue.Claims.SigningKeys {
 			contains := func(a []string, x string) bool {
 				for _, n := range a {
 					if x == n {
@@ -336,7 +340,7 @@ func storeAccountIssue(ctx context.Context, storage logical.Storage, params Issu
 				}
 				return false
 			}
-			if !contains(params.SigningKeys, signingKey) {
+			if !contains(params.Claims.SigningKeys, signingKey) {
 				p := NkeyParameters{
 					Operator: params.Operator,
 					Account:  params.Account,
@@ -353,7 +357,6 @@ func storeAccountIssue(ctx context.Context, storage logical.Storage, params Issu
 	issue.Claims = params.Claims
 	issue.Operator = params.Operator
 	issue.Account = params.Account
-	issue.SigningKeys = params.SigningKeys
 	issue.UseSigningKey = params.UseSigningKey
 	err = storeInStorage(ctx, storage, path, issue)
 	if err != nil {
@@ -377,7 +380,7 @@ func issueAccountNKeys(ctx context.Context, storage logical.Storage, issue Issue
 		return err
 	}
 	if stored == nil {
-		err := addAccountNkey(ctx, true, storage, p)
+		err := addAccountNkey(ctx, storage, p)
 		if err != nil {
 			return err
 		}
@@ -388,7 +391,7 @@ func issueAccountNKeys(ctx context.Context, storage logical.Storage, issue Issue
 	}
 
 	// issue account siginig nkeys
-	for _, signingKey := range issue.SigningKeys {
+	for _, signingKey := range issue.Claims.SigningKeys {
 		p := NkeyParameters{
 			Operator: issue.Operator,
 			Account:  issue.Account,
@@ -399,7 +402,7 @@ func issueAccountNKeys(ctx context.Context, storage logical.Storage, issue Issue
 			return err
 		}
 		if stored == nil {
-			err := addAccountSigningNkey(ctx, true, storage, p)
+			err := addAccountSigningNkey(ctx, storage, p)
 			if err != nil {
 				return err
 			}
@@ -511,7 +514,7 @@ func issueAccountJWT(ctx context.Context, storage logical.Storage, issue IssueAc
 
 	// receive public keys of signing keys
 	var signingPublicKeys []string
-	for _, signingKey := range issue.SigningKeys {
+	for _, signingKey := range issue.Claims.SigningKeys {
 		data, err := readAccountSigningNkey(ctx, storage, NkeyParameters{
 			Operator: issue.Operator,
 			Account:  issue.Account,
@@ -541,14 +544,18 @@ func issueAccountJWT(ctx context.Context, storage logical.Storage, issue IssueAc
 	issue.Claims.ClaimsData.Subject = accountPublicKey
 	issue.Claims.ClaimsData.Issuer = signingPublicKey
 	// TODO: dont know how to handle scopes of signing keys
-	// issue.Claims.Account.SigningKeys = signingPublicKeys
-	token, err := issue.Claims.Encode(signingKeyPair)
+	issue.Claims.Account.SigningKeys = signingPublicKeys
+	natsJwt, err := v1alpha1.Convert(&issue.Claims)
+	if err != nil {
+		return fmt.Errorf("could not convert claims to nats jwt: %s", err)
+	}
+	token, err := natsJwt.Encode(signingKeyPair)
 	if err != nil {
 		return fmt.Errorf("could not encode account jwt: %s", err)
 	}
 
 	// store account jwt
-	err = addAccountJWT(ctx, true, storage, JWTParameters{
+	err = addAccountJWT(ctx, storage, JWTParameters{
 		Operator: issue.Operator,
 		Account:  issue.Account,
 		JWTStorage: JWTStorage{
@@ -594,7 +601,15 @@ func updateUserIssues(ctx context.Context, storage logical.Storage, issue IssueA
 	return nil
 }
 
-func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue IssueAccountStorage) error {
+func refreshAccountResolverPush(ctx context.Context, storage logical.Storage, issue IssueAccountStorage) error {
+	return refreshAccountResolver(ctx, storage, issue, "push")
+}
+
+func refreshAccountResolverDelete(ctx context.Context, storage logical.Storage, issue IssueAccountStorage) error {
+	return refreshAccountResolver(ctx, storage, issue, "delete")
+}
+
+func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue IssueAccountStorage, action string) error {
 
 	// read operator issue
 	op, err := readOperatorIssue(ctx, storage, IssueOperatorParameters{
@@ -609,7 +624,7 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 		return nil
 	} else if !op.SyncAccountServer {
 		return nil
-	} else if op.AccountServerURL == "" {
+	} else if op.Claims.AccountServerURL == "" {
 		log.Warn().
 			Str("operator", issue.Operator).Str("account", issue.Account).
 			Msgf("account server url is not set - can't sync account server.")
@@ -621,6 +636,7 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 		Operator: issue.Operator,
 		Account:  issue.Account,
 	})
+	fmt.Println(accJWT)
 	if err != nil {
 		return err
 	} else if accJWT == nil {
@@ -666,23 +682,79 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 	}
 
 	// connect to nats
-	conn, err := resolver.CreateConnection(op.AccountServerURL, []byte(sysUserJWT.JWT), sysUserKp)
+	resolver, err := resolver.NewResolver(op.Claims.AccountServerURL, []byte(sysUserJWT.JWT), sysUserKp)
 	if err != nil {
 		log.Warn().Str("operator", issue.Operator).
 			Str("account", issue.Account).
 			Err(err).
-			Msg("cannot sync account server")
+			Msg("cannot create conection to account server")
 		return nil
 	}
-	defer conn.Close()
+	defer resolver.CloseConnection()
 
-	err = resolver.PushAccount(conn, []byte(accJWT.JWT))
-	if err != nil {
-		log.Error().Str("operator", issue.Operator).
-			Str("account", issue.Account).
-			Err(err).
-			Msg("cannot sync account server")
-		return nil
+	switch {
+	case action == "push":
+		err = resolver.PushAccount(issue.Account, []byte(accJWT.JWT))
+		if err != nil {
+			log.Error().Str("operator", issue.Operator).
+				Str("account", issue.Account).
+				Err(err).
+				Msg("cannot sync account server (add)")
+			return nil
+		}
+	case action == "delete":
+		operatorNkey, err := readOperatorNkey(ctx, storage, NkeyParameters{
+			Operator: issue.Operator,
+		})
+		if err != nil {
+			return err
+		} else if operatorNkey == nil {
+			log.Warn().Str("operator", issue.Operator).
+				Msg("cannot sync account server: operator nkey does not exist")
+			return nil
+		}
+		kp, err := toNkeyData(operatorNkey)
+		if err != nil {
+			return err
+		}
+		operatorKeypair, err := nkeys.FromSeed([]byte(kp.Seed))
+		if err != nil {
+			return err
+		}
+
+		// read account jwt
+		accNkey, err := readAccountNkey(ctx, storage, NkeyParameters{
+			Operator: issue.Operator,
+			Account:  issue.Account,
+		})
+		if err != nil {
+			return err
+		} else if accJWT == nil {
+			log.Warn().Str("operator", issue.Operator).
+				Str("account", issue.Account).
+				Msg("cannot sync account server: account neky does not exist")
+			return nil
+		}
+		kp, err = toNkeyData(accNkey)
+		if err != nil {
+			return err
+		}
+		accountKeyPair, err := nkeys.FromSeed([]byte(kp.Seed))
+		if err != nil {
+			return err
+		}
+		accountPubKey, err := accountKeyPair.PublicKey()
+		if err != nil {
+			return err
+		}
+		_, err = resolver.DeleteAccounts([]string{accountPubKey}, operatorKeypair)
+		if err != nil {
+			log.Error().Str("operator", issue.Operator).
+				Str("account", issue.Account).
+				Err(err).
+				Msg("cannot sync account server (delete)")
+			return nil
+		}
 	}
 
 	// update issue status
@@ -698,18 +770,16 @@ func getAccountIssuePath(operator string, account string) string {
 }
 
 func createResponseIssueAccountData(issue *IssueAccountStorage) (*logical.Response, error) {
-
 	data := &IssueAccountData{
 		Operator:      issue.Operator,
 		Account:       issue.Account,
 		UseSigningKey: issue.UseSigningKey,
-		SigningKeys:   issue.SigningKeys,
 		Claims:        issue.Claims,
 		Status:        issue.Status,
 	}
 
 	rval := map[string]interface{}{}
-	err := mapstructure.Decode(data, &rval)
+	err := stm.StructToMap(data, &rval)
 	if err != nil {
 		return nil, err
 	}
@@ -758,4 +828,42 @@ func updateAccountStatus(ctx context.Context, storage logical.Storage, issue *Is
 func IsNatsUrl(url string) bool {
 	url = strings.ToLower(strings.TrimSpace(url))
 	return strings.HasPrefix(url, "nats://") || strings.HasPrefix(url, ",nats://")
+}
+
+func addUserToRevocationList(ctx context.Context, storage logical.Storage, account *IssueAccountStorage, user *IssueUserStorage) error {
+	// get user public key
+	userNkey, err := readUserNkey(ctx, storage, NkeyParameters{
+		Operator: account.Operator,
+		Account:  account.Account,
+		User:     user.User,
+	})
+	if err != nil {
+		return err
+	} else if userNkey == nil {
+		return nil
+	}
+	kp, err := toNkeyData(userNkey)
+	if err != nil {
+		return err
+	}
+	userKeypair, err := nkeys.FromSeed([]byte(kp.Seed))
+	if err != nil {
+		return err
+	}
+	userPubKey, err := userKeypair.PublicKey()
+	if err != nil {
+		return err
+	}
+	// add user to revocation list and store
+	if account.Claims.Revocations == nil {
+		account.Claims.Revocations = map[string]int64{}
+	}
+	account.Claims.Revocations[userPubKey] = time.Now().Unix()
+	path := getAccountIssuePath(account.Operator, account.Account)
+	err = storeInStorage(ctx, storage, path, &account)
+	if err != nil {
+		return err
+	}
+	// reissue account jwt and push by refresing account
+	return refreshAccount(ctx, storage, account)
 }

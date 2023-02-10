@@ -3,9 +3,9 @@ package natsbackend
 import (
 	"context"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nkeys"
 )
 
@@ -31,7 +31,7 @@ func pathUserNkey(b *NatsBackend) []*framework.Path {
 				},
 				"seed": {
 					Type:        framework.TypeString,
-					Description: "Nkey seed - Base64 Encoded.",
+					Description: "Nkey seed",
 					Required:    false,
 				},
 			},
@@ -84,17 +84,12 @@ func (b *NatsBackend) pathAddUserNkey(ctx context.Context, req *logical.Request,
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addUserNkey(ctx, create, req.Storage, params)
+	err = addUserNkey(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingNkeyFailedError), nil
 	}
@@ -108,7 +103,7 @@ func (b *NatsBackend) pathReadUserNkey(ctx context.Context, req *logical.Request
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -132,7 +127,7 @@ func (b *NatsBackend) pathListUserNkeys(ctx context.Context, req *logical.Reques
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -152,7 +147,7 @@ func (b *NatsBackend) pathDeleteUserNkey(ctx context.Context, req *logical.Reque
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -175,9 +170,9 @@ func deleteUserNkey(ctx context.Context, storage logical.Storage, params NkeyPar
 	return deleteNkey(ctx, storage, path)
 }
 
-func addUserNkey(ctx context.Context, create bool, storage logical.Storage, params NkeyParameters) error {
+func addUserNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) error {
 	path := getUserNkeyPath(params.Operator, params.Account, params.User)
-	return addNkey(ctx, create, storage, path, nkeys.PrefixByteUser, params)
+	return addNkey(ctx, storage, path, nkeys.PrefixByteUser, params, "user")
 }
 
 func listUserNkeys(ctx context.Context, storage logical.Storage, params NkeyParameters) ([]string, error) {

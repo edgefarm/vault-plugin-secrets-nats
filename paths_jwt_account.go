@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
 )
 
@@ -28,21 +28,6 @@ func pathAccountJWT(b *NatsBackend) []*framework.Path {
 				"jwt": {
 					Type:        framework.TypeString,
 					Description: "Account JWT to import.",
-					Required:    false,
-				},
-				"use_nkey": {
-					Type:        framework.TypeString,
-					Description: "Use NKey to sign JWT.",
-					Required:    false,
-				},
-				"signing_nkeys": {
-					Type:        framework.TypeCommaStringSlice,
-					Description: "NKeys to use to sign JWT.",
-					Required:    false,
-				},
-				"account_claims_json": {
-					Type:        framework.TypeString,
-					Description: "Account Claims JSON to import.",
 					Required:    false,
 				},
 			},
@@ -90,17 +75,12 @@ func (b *NatsBackend) pathAddAccountJWT(ctx context.Context, req *logical.Reques
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addAccountJWT(ctx, create, req.Storage, params)
+	err = addAccountJWT(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingJWTFailedError), nil
 	}
@@ -114,7 +94,7 @@ func (b *NatsBackend) pathReadAccountJWT(ctx context.Context, req *logical.Reque
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -138,7 +118,7 @@ func (b *NatsBackend) pathListAccountJWT(ctx context.Context, req *logical.Reque
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -158,7 +138,7 @@ func (b *NatsBackend) pathDeleteAccountJWT(ctx context.Context, req *logical.Req
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -181,7 +161,7 @@ func deleteAccountJWT(ctx context.Context, storage logical.Storage, params JWTPa
 	return deleteJWT(ctx, storage, path)
 }
 
-func addAccountJWT(ctx context.Context, create bool, storage logical.Storage, params JWTParameters) error {
+func addAccountJWT(ctx context.Context, storage logical.Storage, params JWTParameters) error {
 	if params.JWT == "" {
 		return fmt.Errorf("account JWT is required")
 	} else {
@@ -192,7 +172,7 @@ func addAccountJWT(ctx context.Context, create bool, storage logical.Storage, pa
 	}
 
 	path := getAccountJWTPath(params.Operator, params.Account)
-	return addJWT(ctx, create, storage, path, params)
+	return addJWT(ctx, storage, path, params)
 }
 
 func listAccountJWTs(ctx context.Context, storage logical.Storage, params JWTParameters) ([]string, error) {

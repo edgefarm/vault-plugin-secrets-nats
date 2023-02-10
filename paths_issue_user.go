@@ -2,44 +2,49 @@ package natsbackend
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
 	"github.com/nats-io/nkeys"
 	"github.com/rs/zerolog/log"
+
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/claims/user/v1alpha1"
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 )
 
 type IssueUserStorage struct {
-	Operator      string          `mapstructure:"operator"`
-	Account       string          `mapstructure:"account"`
-	User          string          `mapstructure:"user"`
-	UseSigningKey string          `mapstructure:"use_signing_key"`
-	Claims        jwt.UserClaims  `mapstructure:"user_claims"`
-	Status        IssueUserStatus `mapstructure:"status"`
+	Operator      string              `json:"operator"`
+	Account       string              `json:"account"`
+	User          string              `json:"user"`
+	UseSigningKey string              `json:"useSigningKey"`
+	Claims        v1alpha1.UserClaims `json:"claims"`
+	Status        IssueUserStatus     `json:"status"`
 }
 
+// IssueUserParameters is the user facing interface for configuring a user issue.
+// Using pascal case on purpose.
 type IssueUserParameters struct {
-	Operator      string         `mapstructure:"operator"`
-	Account       string         `mapstructure:"account"`
-	User          string         `mapstructure:"user"`
-	UseSigningKey string         `mapstructure:"use_signing_key"`
-	Claims        jwt.UserClaims `mapstructure:"user_claims"`
+	Operator      string              `json:"operator"`
+	Account       string              `json:"account"`
+	User          string              `json:"user"`
+	UseSigningKey string              `json:"useSigningKey"`
+	Claims        v1alpha1.UserClaims `json:"claims"`
 }
 
 type IssueUserData struct {
-	Operator      string          `mapstructure:"operator"`
-	Account       string          `mapstructure:"account"`
-	User          string          `mapstructure:"user"`
-	UseSigningKey string          `mapstructure:"use_signing_key"`
-	Claims        jwt.UserClaims  `mapstructure:"user_claims"`
-	Status        IssueUserStatus `mapstructure:"status"`
+	Operator      string              `json:"operator"`
+	Account       string              `json:"account"`
+	User          string              `json:"user"`
+	UseSigningKey string              `json:"useSigningKey"`
+	Claims        v1alpha1.UserClaims `json:"claims"`
+	Status        IssueUserStatus     `json:"status"`
 }
 
 type IssueUserStatus struct {
-	User IssueStatus `mapstructure:"user"`
+	User IssueStatus `json:"user"`
 }
 
 func pathUserIssue(b *NatsBackend) []*framework.Path {
@@ -62,12 +67,12 @@ func pathUserIssue(b *NatsBackend) []*framework.Path {
 					Description: "user identifier",
 					Required:    false,
 				},
-				"use_signing_key": {
+				"useSigningKey": {
 					Type:        framework.TypeString,
 					Description: "signing key identifier",
 					Required:    false,
 				},
-				"user_claims": {
+				"claims": {
 					Type:        framework.TypeMap,
 					Description: "User claims (jwt.UserClaims from github.com/nats-io/jwt/v2)",
 					Required:    false,
@@ -121,11 +126,12 @@ func (b *NatsBackend) pathAddUserIssue(ctx context.Context, req *logical.Request
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
 	}
 
-	var params IssueUserParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	jsonString, err := json.Marshal(data.Raw)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
+	params := IssueUserParameters{}
+	json.Unmarshal(jsonString, &params)
 
 	err = addUserIssue(ctx, req.Storage, params)
 	if err != nil {
@@ -140,11 +146,12 @@ func (b *NatsBackend) pathReadUserIssue(ctx context.Context, req *logical.Reques
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
 	}
 
-	var params IssueUserParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	jsonString, err := json.Marshal(data.Raw)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
+	params := IssueUserParameters{}
+	json.Unmarshal(jsonString, &params)
 
 	issue, err := readUserIssue(ctx, req.Storage, params)
 	if err != nil {
@@ -164,11 +171,12 @@ func (b *NatsBackend) pathListUserIssues(ctx context.Context, req *logical.Reque
 		return logical.ErrorResponse(InvalidParametersError), logical.ErrInvalidRequest
 	}
 
-	var params IssueUserParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	jsonString, err := json.Marshal(data.Raw)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
+	params := IssueUserParameters{}
+	json.Unmarshal(jsonString, &params)
 
 	entries, err := listUserIssues(ctx, req.Storage, params)
 	if err != nil {
@@ -185,7 +193,7 @@ func (b *NatsBackend) pathDeleteUserIssue(ctx context.Context, req *logical.Requ
 	}
 
 	var params IssueUserParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -254,11 +262,6 @@ func refreshUser(ctx context.Context, storage logical.Storage, issue *IssueUserS
 		}
 	}
 
-	// // store issue
-	// issue, err = storeUserIssue(ctx, storage, issue.)
-	// if err != nil {
-	// 	return err
-	// }
 	return nil
 }
 
@@ -282,6 +285,25 @@ func deleteUserIssue(ctx context.Context, storage logical.Storage, params IssueU
 	if issue == nil {
 		// nothing to delete
 		return nil
+	}
+
+	// get stored signing keys
+	account, err := readAccountIssue(ctx, storage, IssueAccountParameters{
+		Operator: issue.Operator,
+		Account:  issue.Account,
+	})
+	if err != nil {
+		return err
+	}
+	if account == nil {
+		// nothing to delete
+		return nil
+	}
+
+	// add deleted user to revocation list and update the account JWT
+	err = addUserToRevocationList(ctx, storage, account, issue)
+	if err != nil {
+		return err
 	}
 
 	// delete user nkey
@@ -367,7 +389,7 @@ func issueUserNKeys(ctx context.Context, storage logical.Storage, issue IssueUse
 		return err
 	}
 	if stored == nil {
-		err := addUserNkey(ctx, true, storage, p)
+		err := addUserNkey(ctx, storage, p)
 		if err != nil {
 			return err
 		}
@@ -384,23 +406,31 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 	// to sign jwt and add issuer claim
 	useSigningKey := issue.UseSigningKey
 	var seed []byte
+	accountNkey, err := readAccountNkey(ctx, storage, NkeyParameters{
+		Operator: issue.Operator,
+		Account:  issue.Account,
+	})
+	if err != nil {
+		return fmt.Errorf("could not read operator nkey: %s", err)
+	}
+	if accountNkey == nil {
+		log.Warn().
+			Str("operator", issue.Operator).Str("account", issue.Account).Str("user", issue.User).
+			Msgf("account nkey does not exist: %s - Cannot create jwt.", issue.Account)
+		return nil
+	}
+	accountKeyPair, err := nkeys.FromSeed(accountNkey.Seed)
+	if err != nil {
+		return err
+	}
+	accountPublicKey, err := accountKeyPair.PublicKey()
+	if err != nil {
+		return err
+	}
 	if useSigningKey == "" {
-		data, err := readAccountNkey(ctx, storage, NkeyParameters{
-			Operator: issue.Operator,
-			Account:  issue.Account,
-		})
-		if err != nil {
-			return fmt.Errorf("could not read operator nkey: %s", err)
-		}
-		if data == nil {
-			log.Warn().
-				Str("operator", issue.Operator).Str("account", issue.Account).Str("user", issue.User).
-				Msgf("account nkey does not exist: %s - Cannot create jwt.", issue.Account)
-			return nil
-		}
-		seed = data.Seed
+		seed = accountNkey.Seed
 	} else {
-		data, err := readAccountSigningNkey(ctx, storage, NkeyParameters{
+		signingNkey, err := readAccountSigningNkey(ctx, storage, NkeyParameters{
 			Operator: issue.Operator,
 			Account:  issue.Account,
 			Signing:  useSigningKey,
@@ -408,13 +438,13 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 		if err != nil {
 			return fmt.Errorf("could not read signing nkey: %s", err)
 		}
-		if data == nil {
+		if signingNkey == nil {
 			log.Warn().
 				Str("operator", issue.Operator).Str("account", issue.Account).Str("user", issue.User).
 				Msgf("account signing nkey does not exist: %s - Cannot create jwt.", useSigningKey)
 			return nil
 		}
-		seed = data.Seed
+		seed = signingNkey.Seed
 	}
 	signingKeyPair, err := nkeys.FromSeed(seed)
 	if err != nil {
@@ -447,15 +477,23 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 		return err
 	}
 
+	if useSigningKey != "" {
+		issue.Claims.IssuerAccount = accountPublicKey
+	}
+
 	issue.Claims.ClaimsData.Subject = userPublicKey
 	issue.Claims.ClaimsData.Issuer = signingPublicKey
-	token, err := issue.Claims.Encode(signingKeyPair)
+	natsJwt, err := v1alpha1.Convert(&issue.Claims)
+	if err != nil {
+		return fmt.Errorf("could not convert claims to nats jwt: %s", err)
+	}
+	token, err := natsJwt.Encode(signingKeyPair)
 	if err != nil {
 		return fmt.Errorf("could not encode jwt: %s", err)
 	}
 
 	// store jwt
-	err = addUserJWT(ctx, true, storage, JWTParameters{
+	err = addUserJWT(ctx, storage, JWTParameters{
 		Operator: issue.Operator,
 		Account:  issue.Account,
 		User:     issue.User,
@@ -520,7 +558,7 @@ func issueUserCreds(ctx context.Context, storage logical.Storage, issue IssueUse
 	}
 
 	// store creds
-	err = addUserCreds(ctx, true, storage, CredsParameters{
+	err = addUserCreds(ctx, storage, CredsParameters{
 		Operator: issue.Operator,
 		Account:  issue.Account,
 		User:     issue.User,
@@ -550,7 +588,7 @@ func createResponseIssueUserData(issue *IssueUserStorage) (*logical.Response, er
 	}
 
 	rval := map[string]interface{}{}
-	err := mapstructure.Decode(data, &rval)
+	err := stm.StructToMap(data, &rval)
 	if err != nil {
 		return nil, err
 	}

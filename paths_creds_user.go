@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 )
 
 func pathUserCreds(b *NatsBackend) []*framework.Path {
@@ -84,17 +84,12 @@ func (b *NatsBackend) pathAddUserCreds(ctx context.Context, req *logical.Request
 	}
 
 	var params CredsParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addUserCreds(ctx, create, req.Storage, params)
+	err = addUserCreds(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingCredsFailedError), nil
 	}
@@ -108,7 +103,7 @@ func (b *NatsBackend) pathReadUserCreds(ctx context.Context, req *logical.Reques
 	}
 
 	var params CredsParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -132,7 +127,7 @@ func (b *NatsBackend) pathListUserCreds(ctx context.Context, req *logical.Reques
 	}
 
 	var params CredsParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -152,7 +147,7 @@ func (b *NatsBackend) pathDeleteUserCreds(ctx context.Context, req *logical.Requ
 	}
 
 	var params CredsParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -175,13 +170,13 @@ func deleteUserCreds(ctx context.Context, storage logical.Storage, params CredsP
 	return deleteCreds(ctx, storage, path)
 }
 
-func addUserCreds(ctx context.Context, create bool, storage logical.Storage, params CredsParameters) error {
+func addUserCreds(ctx context.Context, storage logical.Storage, params CredsParameters) error {
 	if params.Creds == "" {
 		return fmt.Errorf("user Creds is required")
 	}
 
 	path := getUserCredsPath(params.Operator, params.Account, params.User)
-	return addCreds(ctx, create, storage, path, params)
+	return addCreds(ctx, storage, path, params)
 }
 
 func listUserCreds(ctx context.Context, storage logical.Storage, params CredsParameters) ([]string, error) {

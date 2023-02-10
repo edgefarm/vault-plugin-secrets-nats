@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
 )
 
@@ -85,17 +85,12 @@ func (b *NatsBackend) pathAddUserJWT(ctx context.Context, req *logical.Request, 
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addUserJWT(ctx, create, req.Storage, params)
+	err = addUserJWT(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingJWTFailedError), nil
 	}
@@ -109,7 +104,7 @@ func (b *NatsBackend) pathReadUserJWT(ctx context.Context, req *logical.Request,
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -133,7 +128,7 @@ func (b *NatsBackend) pathListUserJWTs(ctx context.Context, req *logical.Request
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -153,7 +148,7 @@ func (b *NatsBackend) pathDeleteUserJWT(ctx context.Context, req *logical.Reques
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -176,7 +171,7 @@ func deleteUserJWT(ctx context.Context, storage logical.Storage, params JWTParam
 	return deleteJWT(ctx, storage, path)
 }
 
-func addUserJWT(ctx context.Context, create bool, storage logical.Storage, params JWTParameters) error {
+func addUserJWT(ctx context.Context, storage logical.Storage, params JWTParameters) error {
 	if params.JWT == "" {
 		return fmt.Errorf("user JWT is required")
 	} else {
@@ -187,7 +182,7 @@ func addUserJWT(ctx context.Context, create bool, storage logical.Storage, param
 	}
 
 	path := getUserJWTPath(params.Operator, params.Account, params.User)
-	return addJWT(ctx, create, storage, path, params)
+	return addJWT(ctx, storage, path, params)
 }
 
 func listUserJWTs(ctx context.Context, storage logical.Storage, params JWTParameters) ([]string, error) {
