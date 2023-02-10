@@ -2,15 +2,14 @@ package natsbackend
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"reflect"
 	"testing"
 
+	v1alpha1 "github.com/edgefarm/vault-plugin-secrets-nats/pkg/claims/operator/v1alpha1"
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -63,15 +62,14 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueOperatorParameters{}, &request)
+		stm.StructToMap(&IssueOperatorParameters{}, &request)
 
 		//////////////////////////
 		// That will be expected
 		//////////////////////////
 		expected = IssueOperatorData{
-			Operator:    "op1",
-			SigningKeys: []string(nil),
-			Claims:      jwt.OperatorClaims{},
+			Operator: "op1",
+			Claims:   v1alpha1.OperatorClaims{},
 			Status: IssueOperatorStatus{
 				Operator: IssueStatus{
 					Nkey: true,
@@ -115,15 +113,15 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		//////////////////////////////////
 		// Compare the expected and current
 		//////////////////////////////////
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		assert.Equal(t, expected, current)
 
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueOperatorParameters{
-			Claims: jwt.OperatorClaims{
-				Operator: jwt.Operator{
+		stm.StructToMap(&IssueOperatorParameters{
+			Claims: v1alpha1.OperatorClaims{
+				Operator: v1alpha1.Operator{
 					AccountServerURL: "http://localhost:9090",
 				},
 			},
@@ -134,8 +132,8 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		//////////////////////////
 		expected = IssueOperatorData{
 			Operator: "op1",
-			Claims: jwt.OperatorClaims{
-				Operator: jwt.Operator{
+			Claims: v1alpha1.OperatorClaims{
+				Operator: v1alpha1.Operator{
 					AccountServerURL: "http://localhost:9090",
 				},
 			},
@@ -181,7 +179,7 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		//////////////////////////////////
 		// Compare the expected and current
 		//////////////////////////////////
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		assert.Equal(t, expected, current)
 
 		//////////////////////////////////
@@ -316,10 +314,14 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Path:      path,
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"signing_keys": []string{
-					"key1",
-					"key2",
-					"key3",
+				"claims": map[string]interface{}{
+					"operator": map[string]interface{}{
+						"signingKeys": []interface{}{
+							"key1",
+							"key2",
+							"key3",
+						},
+					},
 				},
 			},
 		})
@@ -335,12 +337,12 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) != "")
-		assert.True(t, resp.Data["public_key"].(string) != "")
-		assert.True(t, resp.Data["private_key"].(string) != "")
+		assert.True(t, resp.Data["publicKey"].(string) != "")
+		assert.True(t, resp.Data["privateKey"].(string) != "")
 		seed := resp.Data["seed"].(string)
-		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		seedBytes := []byte(seed)
 		assert.NoError(t, err)
-		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
+		assert.NoError(t, validateSeed(seedBytes, "operator"))
 
 		// read a signing key
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -352,9 +354,9 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) != "")
 		seed = resp.Data["seed"].(string)
-		seedBytes, err = base64.StdEncoding.DecodeString(seed)
+		seedBytes = []byte(seed)
 		assert.NoError(t, err)
-		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
+		assert.NoError(t, validateSeed(seedBytes, "operator"))
 
 		// read the jwt
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -434,10 +436,14 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Path:      "issue/operator/op",
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"signing_keys": []string{
-					"key1",
-					"key2",
-					"key3",
+				"claims": map[string]interface{}{
+					"operator": map[string]interface{}{
+						"signingKeys": []interface{}{
+							"key1",
+							"key2",
+							"key3",
+						},
+					},
 				},
 			},
 		})
@@ -454,9 +460,9 @@ func TestCRUDOperatorIssue(t *testing.T) {
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) != "")
 		seed := resp.Data["seed"].(string)
-		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		seedBytes := []byte(seed)
 		assert.NoError(t, err)
-		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
+		assert.NoError(t, validateSeed(seedBytes, "operator"))
 
 		// list the signing keys
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -474,10 +480,14 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Path:      "issue/operator/op",
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"signing_keys": []string{
-					"key2",
-					"key3",
-					"key4",
+				"claims": map[string]interface{}{
+					"operator": map[string]interface{}{
+						"signingKeys": []interface{}{
+							"key2",
+							"key3",
+							"key4",
+						},
+					},
 				},
 			},
 		})
@@ -525,7 +535,7 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Path:      path,
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"create_system_account": true,
+				"CreateSystemAccount": true,
 			},
 		})
 		assert.NoError(t, err)

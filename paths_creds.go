@@ -2,29 +2,28 @@ package natsbackend
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 )
 
 // JWTStorage represents a Creds stored in the backend
 type CredsStorage struct {
-	Creds string `mapstructure:"creds"`
+	Creds string `json:"creds"`
 }
 
 // CredsParameters represents the parameters for a Creds operation
 type CredsParameters struct {
-	Operator     string `mapstructure:"operator,omitempty"`
-	Account      string `mapstructure:"account,omitempty"`
-	User         string `mapstructure:"user,omitempty"`
-	CredsStorage `mapstructure:",squash"`
+	Operator string `json:"operator,omitempty"`
+	Account  string `json:"account,omitempty"`
+	User     string `json:"user,omitempty"`
+	CredsStorage
 }
 
 // CredsData represents the the data returned by a Creds operation
 type CredsData struct {
-	CredsStorage `mapstructure:",squash"`
+	CredsStorage
 }
 
 func pathCreds(b *NatsBackend) []*framework.Path {
@@ -47,7 +46,7 @@ func createResponseCredsData(creds *CredsStorage) (*logical.Response, error) {
 	}
 
 	rval := map[string]interface{}{}
-	err := mapstructure.Decode(d, &rval)
+	err := stm.StructToMap(d, &rval)
 	if err != nil {
 		return nil, err
 	}
@@ -58,16 +57,13 @@ func createResponseCredsData(creds *CredsStorage) (*logical.Response, error) {
 	return resp, nil
 }
 
-func addCreds(ctx context.Context, create bool, storage logical.Storage, path string, params CredsParameters) error {
+func addCreds(ctx context.Context, storage logical.Storage, path string, params CredsParameters) error {
 	creds, err := getFromStorage[CredsStorage](ctx, storage, path)
 	if err != nil {
 		return err
 	}
 
 	if creds == nil {
-		if !create {
-			return fmt.Errorf("creds does not exist")
-		}
 		creds = &CredsStorage{}
 	}
 

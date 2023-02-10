@@ -2,11 +2,9 @@ package natsbackend
 
 import (
 	"context"
-	"encoding/base64"
 	"testing"
 
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/nats-io/nkeys"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -59,13 +57,13 @@ func TestCRUDUserNKeys(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) != "")
-		assert.True(t, resp.Data["public_key"].(string) != "")
-		assert.True(t, resp.Data["private_key"].(string) != "")
+		assert.True(t, resp.Data["publicKey"].(string) != "")
+		assert.True(t, resp.Data["privateKey"].(string) != "")
 
 		seed := resp.Data["seed"].(string)
-		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		seedBytes := []byte(seed)
 		assert.NoError(t, err)
-		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteUser))
+		assert.NoError(t, validateSeed(seedBytes, "user"))
 
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ListOperation,

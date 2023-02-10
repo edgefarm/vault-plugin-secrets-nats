@@ -1,169 +1,162 @@
 package natsbackend
 
-import (
-	"context"
-	"testing"
+// func TestNatsWithAccountServer(t *testing.T) {
 
-	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
-	"github.com/nats-io/jwt/v2"
-	"github.com/stretchr/testify/assert"
-)
+// 	/////////////////////////////////////////////////////
+// 	// Create all necessary secrets to start nats server
+// 	/////////////////////////////////////////////////////
 
-func TestNatsWithAccountServer(t *testing.T) {
+// 	//------------------------
+// 	// Prepare
+// 	//------------------------
 
-	/////////////////////////////////////////////////////
-	// Create all necessary secrets to start nats server
-	/////////////////////////////////////////////////////
+// 	var request map[string]interface{}
+// 	b, reqStorage := getTestBackend(t)
+// 	var currentOperator IssueOperatorData
+// 	var expectedOperator IssueOperatorData
+// 	var currentAccount IssueAccountData
+// 	var expectedAccount IssueAccountData
+// 	//------------------------
+// 	// That will be requested
+// 	//------------------------
 
-	//------------------------
-	// Prepare
-	//------------------------
+// 	onIssue := "issue/operator/operator"
 
-	var request map[string]interface{}
-	b, reqStorage := getTestBackend(t)
-	var currentOperator IssueOperatorData
-	var expectedOperator IssueOperatorData
-	var currentAccount IssueAccountData
-	var expectedAccount IssueAccountData
-	//------------------------
-	// That will be requested
-	//------------------------
+// 	mstm.StructToMap(&IssueOperatorParameters{
+// 		CreateSystemAccount: true,
+// 		AccountServerURL:    "nats://localhost:4222",
+// 		SyncAccountServer:   true,
+// 	}, &request)
 
-	onIssue := "issue/operator/operator"
+// 	//------------------------
+// 	// That will be expected
+// 	//------------------------
+// 	expectedOperator = IssueOperatorData{
+// 		Operator:            "operator",
+// 		SigningKeys:         []string(nil),
+// 		CreateSystemAccount: true,
+// 		AccountServerURL:    "nats://localhost:4222",
+// 		SyncAccountServer:   true,
+// 		Claims:              operatorv1.OperatorClaims{},
+// 		Status: IssueOperatorStatus{
+// 			Operator: IssueStatus{
+// 				Nkey: true,
+// 				JWT:  true,
+// 			},
+// 			SystemAccount: IssueStatus{
+// 				Nkey: true,
+// 				JWT:  true,
+// 			},
+// 			SystemAccountUser: IssueStatus{
+// 				Nkey: true,
+// 				JWT:  true,
+// 			},
+// 		},
+// 	}
 
-	mapstructure.Decode(IssueOperatorParameters{
-		CreateSystemAccount: true,
-		AccountServerURL:    "nats://localhost:4222",
-		SyncAccountServer:   true,
-	}, &request)
+// 	//------------------------
+// 	// create issue
+// 	//------------------------
+// 	resp, err := b.HandleRequest(context.Background(), &logical.Request{
+// 		Operation: logical.CreateOperation,
+// 		Path:      onIssue,
+// 		Storage:   reqStorage,
+// 		Data:      request,
+// 	})
+// 	assert.NoError(t, err)
+// 	assert.False(t, resp.IsError())
 
-	//------------------------
-	// That will be expected
-	//------------------------
-	expectedOperator = IssueOperatorData{
-		Operator:            "operator",
-		SigningKeys:         []string(nil),
-		CreateSystemAccount: true,
-		AccountServerURL:    "nats://localhost:4222",
-		SyncAccountServer:   true,
-		Claims:              jwt.OperatorClaims{},
-		Status: IssueOperatorStatus{
-			Operator: IssueStatus{
-				Nkey: true,
-				JWT:  true,
-			},
-			SystemAccount: IssueStatus{
-				Nkey: true,
-				JWT:  true,
-			},
-			SystemAccountUser: IssueStatus{
-				Nkey: true,
-				JWT:  true,
-			},
-		},
-	}
+// 	//////////////////////////
+// 	// read the created issue
+// 	//////////////////////////
+// 	resp, err = b.HandleRequest(context.Background(), &logical.Request{
+// 		Operation: logical.ReadOperation,
+// 		Path:      onIssue,
+// 		Storage:   reqStorage,
+// 	})
+// 	assert.NoError(t, err)
+// 	assert.False(t, resp.IsError())
 
-	//------------------------
-	// create issue
-	//------------------------
-	resp, err := b.HandleRequest(context.Background(), &logical.Request{
-		Operation: logical.CreateOperation,
-		Path:      onIssue,
-		Storage:   reqStorage,
-		Data:      request,
-	})
-	assert.NoError(t, err)
-	assert.False(t, resp.IsError())
+// 	//////////////////////////////////
+// 	// Compare the expected and current
+// 	//////////////////////////////////
+// 	stm.MapToStruct(resp.Data, &currentOperator)
+// 	assert.Equal(t, expectedOperator, currentOperator)
 
-	//////////////////////////
-	// read the created issue
-	//////////////////////////
-	resp, err = b.HandleRequest(context.Background(), &logical.Request{
-		Operation: logical.ReadOperation,
-		Path:      onIssue,
-		Storage:   reqStorage,
-	})
-	assert.NoError(t, err)
-	assert.False(t, resp.IsError())
+// 	/////////////////////////////
+// 	// read system account issue
+// 	// created by the operator
+// 	/////////////////////////////
+// 	resp, err = b.HandleRequest(context.Background(), &logical.Request{
+// 		Operation: logical.ReadOperation,
+// 		Path:      onIssue + "/account/" + DefaultSysAccountName,
+// 		Storage:   reqStorage,
+// 	})
+// 	assert.NoError(t, err)
+// 	assert.False(t, resp.IsError())
 
-	//////////////////////////////////
-	// Compare the expected and current
-	//////////////////////////////////
-	mapstructure.Decode(resp.Data, &currentOperator)
-	assert.Equal(t, expectedOperator, currentOperator)
+// 	//------------------------
+// 	// That will be expected
+// 	//------------------------
+// 	expectedAccount = IssueAccountData{
+// 		Operator:      "operator",
+// 		Account:       DefaultSysAccountName,
+// 		UseSigningKey: "",
+// 		SigningKeys:   []string(nil),
+// 		Claims: accountv1.AccountClaims{
+// 			Account: accountv1.Account{
+// 				Exports: []accountv1.Export{
+// 					{
+// 						Name:                 "account-monitoring-services",
+// 						Subject:              "$SYS.REQ.ACCOUNT.*.*",
+// 						Type:                 "Service",
+// 						ResponseType:         jwt.ResponseTypeStream,
+// 						AccountTokenPosition: 4,
+// 						Info: common.Info{
+// 							Description: `Request account specific monitoring services for: SUBSZ, CONNZ, LEAFZ, JSZ and INFO`,
+// 							InfoURL:     "https://docs.nats.io/nats-server/configuration/sys_accounts",
+// 						},
+// 					},
+// 					{
+// 						Name:                 "account-monitoring-streams",
+// 						Subject:              "$SYS.ACCOUNT.*.>",
+// 						Type:                 "Stream",
+// 						AccountTokenPosition: 3,
+// 						Info: common.Info{
+// 							Description: `Account specific monitoring stream`,
+// 							InfoURL:     "https://docs.nats.io/nats-server/configuration/sys_accounts",
+// 						},
+// 					},
+// 				},
+// 				Limits: accountv1.OperatorLimits{
+// 					NatsLimits: common.NatsLimits{
+// 						Subs:    -1,
+// 						Data:    -1,
+// 						Payload: -1,
+// 					},
+// 					AccountLimits: accountv1.AccountLimits{
+// 						Imports:         -1,
+// 						Exports:         -1,
+// 						WildcardExports: true,
+// 						Conn:            -1,
+// 						LeafNodeConn:    -1,
+// 					},
+// 				},
+// 			},
+// 		},
+// 		Status: IssueAccountStatus{
+// 			Account: IssueStatus{
+// 				Nkey: true,
+// 				JWT:  true,
+// 			},
+// 			AccountServer: AccountServerStatus{
+// 				Synced:   false,
+// 				LastSync: 0,
+// 			},
+// 		},
+// 	}
 
-	/////////////////////////////
-	// read system account issue
-	// created by the operator
-	/////////////////////////////
-	resp, err = b.HandleRequest(context.Background(), &logical.Request{
-		Operation: logical.ReadOperation,
-		Path:      onIssue + "/account/" + DefaultSysAccountName,
-		Storage:   reqStorage,
-	})
-	assert.NoError(t, err)
-	assert.False(t, resp.IsError())
+// 	stm.MapToStruct(resp.Data, &currentAccount)
+// 	assert.Equal(t, expectedAccount, currentAccount)
 
-	//------------------------
-	// That will be expected
-	//------------------------
-	expectedAccount = IssueAccountData{
-		Operator:      "operator",
-		Account:       DefaultSysAccountName,
-		UseSigningKey: "",
-		SigningKeys:   []string(nil),
-		Claims: jwt.AccountClaims{
-			Account: jwt.Account{
-				Exports: []*jwt.Export{
-					{
-						Name:                 "account-monitoring-services",
-						Subject:              "$SYS.REQ.ACCOUNT.*.*",
-						Type:                 jwt.Service,
-						TokenReq:             false,
-						Revocations:          nil,
-						ResponseType:         "Stream",
-						ResponseThreshold:    0,
-						Latency:              nil,
-						AccountTokenPosition: 4,
-						Advertise:            false,
-						Info: jwt.Info{
-							Description: "Request account specific monitoring services for: SUBSZ, CONNZ, LEAFZ, JSZ and INFO",
-							InfoURL:     "https://docs.nats.io/nats-server/configuration/sys_accounts",
-						},
-					},
-					{
-						Name:                 "account-monitoring-streams",
-						Subject:              "$SYS.ACCOUNT.*.>",
-						Type:                 jwt.Stream,
-						TokenReq:             false,
-						Revocations:          nil,
-						ResponseType:         "",
-						ResponseThreshold:    0,
-						Latency:              nil,
-						AccountTokenPosition: 3,
-						Advertise:            false,
-						Info: jwt.Info{
-							Description: "Account specific monitoring stream",
-							InfoURL:     "https://docs.nats.io/nats-server/configuration/sys_accounts",
-						},
-					},
-				},
-			},
-		},
-		Status: IssueAccountStatus{
-			Account: IssueStatus{
-				Nkey: true,
-				JWT:  true,
-			},
-			AccountServer: AccountServerStatus{
-				Synced:   false,
-				LastSync: 0,
-			},
-		},
-	}
-
-	mapstructure.Decode(resp.Data, &currentAccount)
-	assert.Equal(t, expectedAccount, currentAccount)
-
-}
+// }

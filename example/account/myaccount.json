@@ -1,0 +1,16 @@
+{
+  "claims": {
+    "account": {
+      "limits": {
+        "subs": -1,
+        "conn": -1,
+        "leafNodeConn": -1,
+        "data": -1,
+        "payload": -1,
+        "wildcardExports": true,
+        "imports": -1,
+        "exports": -1
+      }
+    }
+  }
+}

@@ -3,9 +3,9 @@ package natsbackend
 import (
 	"context"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nkeys"
 )
 
@@ -21,7 +21,7 @@ func pathOperatorNkey(b *NatsBackend) []*framework.Path {
 				},
 				"seed": {
 					Type:        framework.TypeString,
-					Description: "Nkey seed - Base64 encoded",
+					Description: "Nkey seed",
 					Required:    false,
 				},
 			},
@@ -62,17 +62,12 @@ func (b *NatsBackend) pathAddOperatorNkey(ctx context.Context, req *logical.Requ
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addOperatorNkey(ctx, create, req.Storage, params)
+	err = addOperatorNkey(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingNkeyFailedError), nil
 	}
@@ -86,7 +81,7 @@ func (b *NatsBackend) pathReadOperatorNkey(ctx context.Context, req *logical.Req
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -124,7 +119,7 @@ func (b *NatsBackend) pathDeleteOperatorNkey(ctx context.Context, req *logical.R
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -147,9 +142,9 @@ func deleteOperatorNkey(ctx context.Context, storage logical.Storage, params Nke
 	return deleteNkey(ctx, storage, path)
 }
 
-func addOperatorNkey(ctx context.Context, create bool, storage logical.Storage, params NkeyParameters) error {
+func addOperatorNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) error {
 	path := getOperatorNkeyPath(params.Operator)
-	return addNkey(ctx, create, storage, path, nkeys.PrefixByteOperator, params)
+	return addNkey(ctx, storage, path, nkeys.PrefixByteOperator, params, "operator")
 }
 
 func listOperatorNkeys(ctx context.Context, storage logical.Storage) ([]string, error) {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 )
 
 // natsBackend defines an object that
@@ -169,8 +169,7 @@ func readOperation[T any](ctx context.Context, s logical.Storage, path string) (
 	}
 
 	var groupMap map[string]interface{}
-
-	err = mapstructure.Decode(t, &groupMap)
+	err = stm.StructToMap(t, &groupMap)
 	if err != nil {
 		return nil, err
 	}

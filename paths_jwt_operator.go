@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
 )
 
@@ -64,17 +64,12 @@ func (b *NatsBackend) pathAddOperatorJWT(ctx context.Context, req *logical.Reque
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addOperatorJWT(ctx, create, req.Storage, params)
+	err = addOperatorJWT(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingJWTFailedError), nil
 	}
@@ -89,7 +84,7 @@ func (b *NatsBackend) pathReadOperatorJWT(ctx context.Context, req *logical.Requ
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -127,7 +122,7 @@ func (b *NatsBackend) pathDeleteOperatorJWT(ctx context.Context, req *logical.Re
 	}
 
 	var params JWTParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -150,7 +145,7 @@ func deleteOperatorJWT(ctx context.Context, storage logical.Storage, params JWTP
 	return deleteJWT(ctx, storage, path)
 }
 
-func addOperatorJWT(ctx context.Context, create bool, storage logical.Storage, params JWTParameters) error {
+func addOperatorJWT(ctx context.Context, storage logical.Storage, params JWTParameters) error {
 	if params.JWT == "" {
 		return fmt.Errorf("operator JWT is required")
 	} else {
@@ -161,7 +156,7 @@ func addOperatorJWT(ctx context.Context, create bool, storage logical.Storage, p
 	}
 
 	path := getOperatorJWTPath(params.Operator)
-	return addJWT(ctx, create, storage, path, params)
+	return addJWT(ctx, storage, path, params)
 }
 
 func listOperatorJWTs(ctx context.Context, storage logical.Storage) ([]string, error) {

@@ -2,7 +2,6 @@ package natsbackend
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"testing"
 
@@ -14,20 +13,8 @@ import (
 func genOperatorSeed() string {
 	key, _ := nkeys.CreateOperator()
 	seed, _ := key.Seed()
-	return base64.StdEncoding.EncodeToString([]byte(seed))
+	return string(seed)
 }
-
-// func genAccountSeed() string {
-// 	key, _ := nkeys.CreateAccount()
-// 	seed, _ := key.Seed()
-// 	return base64.StdEncoding.EncodeToString([]byte(seed))
-// }
-
-// func genUserSeed() string {
-// 	key, _ := nkeys.CreateUser()
-// 	seed, _ := key.Seed()
-// 	return base64.StdEncoding.EncodeToString([]byte(seed))
-// }
 
 func TestCRUDOperatorNKeys(t *testing.T) {
 	b, reqStorage := getTestBackend(t)
@@ -79,13 +66,13 @@ func TestCRUDOperatorNKeys(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) != "")
-		assert.True(t, resp.Data["public_key"].(string) != "")
-		assert.True(t, resp.Data["private_key"].(string) != "")
+		assert.True(t, resp.Data["publicKey"].(string) != "")
+		assert.True(t, resp.Data["privateKey"].(string) != "")
 
 		seed := resp.Data["seed"].(string)
-		seedBytes, err := base64.StdEncoding.DecodeString(seed)
+		seedBytes := []byte(seed)
 		assert.NoError(t, err)
-		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
+		assert.NoError(t, validateSeed(seedBytes, "operator"))
 
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.ListOperation,
@@ -117,12 +104,12 @@ func TestCRUDOperatorNKeys(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		assert.True(t, resp.Data["seed"].(string) == seed)
-		assert.True(t, resp.Data["public_key"].(string) != "")
-		assert.True(t, resp.Data["private_key"].(string) != "")
+		assert.True(t, resp.Data["publicKey"].(string) != "")
+		assert.True(t, resp.Data["privateKey"].(string) != "")
 		seed = resp.Data["seed"].(string)
-		seedBytes, err = base64.StdEncoding.DecodeString(seed)
+		seedBytes = []byte(seed)
 		assert.NoError(t, err)
-		assert.NoError(t, validateSeed(seedBytes, nkeys.PrefixByteOperator))
+		assert.NoError(t, validateSeed(seedBytes, "operator"))
 
 		// then delete the key and read it
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -203,6 +190,51 @@ func TestCRUDOperatorNKeys(t *testing.T) {
 			assert.NoError(t, err)
 			assert.False(t, resp.IsError())
 		}
+
+		// list the keys
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ListOperation,
+			Path:      "nkey/operator",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+		assert.Equal(t, map[string]interface{}{}, resp.Data)
+
+	})
+
+	t.Run("Test CRUD with a passed seed", func(t *testing.T) {
+		path := "nkey/operator/op1"
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      path,
+			Storage:   reqStorage,
+			Data: map[string]interface{}{
+				"seed": "SOAJKQOZUY2EI4TRPO2HVXN572UFNBNDZKLUEMGJCHP3WNBUS73WHCIUPU",
+			},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		// list the keys
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ListOperation,
+			Path:      "nkey/operator",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+		assert.Equal(t, map[string]interface{}{
+			"keys": []string{"op1"},
+		}, resp.Data)
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
 
 		// list the keys
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{

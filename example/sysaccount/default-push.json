@@ -1,0 +1,26 @@
+{
+  "useSigningKey": "sask1",
+  "claims": {
+    "user": {
+      "data": -1,
+      "payload": -1,
+      "subs": -1,
+      "locale": "",
+      "pub": {
+        "allow": [
+          "$SYS.REQ.CLAIMS.LIST",
+          "$SYS.REQ.CLAIMS.UPDATE",
+          "$SYS.REQ.CLAIMS.DELETE"
+        ],
+        "deny": null
+      },
+      "resp": null,
+      "sub": {
+        "allow": [
+          "_INBOX.>"
+        ],
+        "deny": null
+      }
+    }
+  }
+}

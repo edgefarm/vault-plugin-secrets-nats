@@ -2,16 +2,20 @@ package natsbackend
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/assert"
 	"gonum.org/v1/gonum/stat/combin"
+
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/claims/common"
+	userv1 "github.com/edgefarm/vault-plugin-secrets-nats/pkg/claims/user/v1alpha1"
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 )
 
 func TestCRUDUserIssue(t *testing.T) {
@@ -103,7 +107,7 @@ func TestCRUDUserIssue(t *testing.T) {
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueUserParameters{}, &request)
+		stm.StructToMap(&IssueUserParameters{}, &request)
 
 		//////////////////////////
 		// That will be expected
@@ -113,7 +117,7 @@ func TestCRUDUserIssue(t *testing.T) {
 			Account:       "ac1",
 			User:          "us1",
 			UseSigningKey: "",
-			Claims:        jwt.UserClaims{},
+			Claims:        userv1.UserClaims{},
 			Status: IssueUserStatus{
 				User: IssueStatus{
 					Nkey: true,
@@ -149,25 +153,29 @@ func TestCRUDUserIssue(t *testing.T) {
 		//////////////////////////////////
 		// Compare the expected and current
 		//////////////////////////////////
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		assert.Equal(t, expected, current)
 
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueUserParameters{
-			Claims: jwt.UserClaims{
-				User: jwt.User{
-					UserPermissionLimits: jwt.UserPermissionLimits{
-						Limits: jwt.Limits{
-							NatsLimits: jwt.NatsLimits{
+
+		issue := IssueUserParameters{
+			Claims: userv1.UserClaims{
+				User: userv1.User{
+					UserPermissionLimits: userv1.UserPermissionLimits{
+						Limits: userv1.Limits{
+							NatsLimits: common.NatsLimits{
 								Subs: 1,
 							},
 						},
 					},
 				},
 			},
-		}, &request)
+		}
+		tmp, err := json.Marshal(issue)
+		assert.Nil(t, err)
+		json.Unmarshal(tmp, &request)
 
 		//////////////////////////
 		// That will be expected
@@ -176,11 +184,11 @@ func TestCRUDUserIssue(t *testing.T) {
 			Operator: "op1",
 			Account:  "ac1",
 			User:     "us1",
-			Claims: jwt.UserClaims{
-				User: jwt.User{
-					UserPermissionLimits: jwt.UserPermissionLimits{
-						Limits: jwt.Limits{
-							NatsLimits: jwt.NatsLimits{
+			Claims: userv1.UserClaims{
+				User: userv1.User{
+					UserPermissionLimits: userv1.UserPermissionLimits{
+						Limits: userv1.Limits{
+							NatsLimits: common.NatsLimits{
 								Subs: 1,
 							},
 						},
@@ -221,7 +229,8 @@ func TestCRUDUserIssue(t *testing.T) {
 		//////////////////////////////////
 		// Compare the expected and current
 		//////////////////////////////////
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
+
 		assert.Equal(t, expected, current)
 
 		//////////////////////////////////
@@ -328,7 +337,7 @@ func TestCRUDUserIssue(t *testing.T) {
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueUserParameters{}, &request)
+		stm.StructToMap(&IssueUserParameters{}, &request)
 
 		/////////////////////////////
 		// create the issue only
@@ -471,7 +480,7 @@ func TestCRUDUserIssue(t *testing.T) {
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueUserParameters{}, &request)
+		stm.StructToMap(&IssueUserParameters{}, &request)
 
 		/////////////////////////////
 		// create the issue only
@@ -755,7 +764,7 @@ func checkOperatorJWTForSysAccount(b *NatsBackend, reqStorage logical.Storage, o
 		return fmt.Errorf("error reading operator JWT: %s", resp.Error().Error())
 	}
 	var current JWTData
-	mapstructure.Decode(resp.Data, &current)
+	stm.MapToStruct(resp.Data, &current)
 	operatorClaims, err := jwt.DecodeOperatorClaims(current.JWT)
 	if err != nil {
 		return err
@@ -774,7 +783,7 @@ func checkOperatorJWTForSysAccount(b *NatsBackend, reqStorage logical.Storage, o
 		return fmt.Errorf("error reading sys account JWT: %s", resp.Error().Error())
 	}
 	var sysAccount JWTData
-	mapstructure.Decode(resp.Data, &sysAccount)
+	stm.MapToStruct(resp.Data, &sysAccount)
 	sysAccountClaims, err := jwt.DecodeAccountClaims(sysAccount.JWT)
 	if err != nil {
 		return err
@@ -799,7 +808,7 @@ func checkAccountJWTForOperator(b *NatsBackend, reqStorage logical.Storage, oper
 		return fmt.Errorf("error reading operator JWT: %s", resp.Error().Error())
 	}
 	var operator JWTData
-	mapstructure.Decode(resp.Data, &operator)
+	stm.MapToStruct(resp.Data, &operator)
 	operatorClaims, err := jwt.DecodeOperatorClaims(operator.JWT)
 	if err != nil {
 		return err
@@ -817,7 +826,7 @@ func checkAccountJWTForOperator(b *NatsBackend, reqStorage logical.Storage, oper
 		return fmt.Errorf("error reading account JWT: %s", resp.Error().Error())
 	}
 	var account JWTData
-	mapstructure.Decode(resp.Data, &account)
+	stm.MapToStruct(resp.Data, &account)
 	accountClaims, err := jwt.DecodeAccountClaims(account.JWT)
 	if err != nil {
 		return err
@@ -842,7 +851,7 @@ func checkUserJWTForAccount(b *NatsBackend, reqStorage logical.Storage, operator
 		return fmt.Errorf("error reading account JWT: %s", resp.Error().Error())
 	}
 	var account JWTData
-	mapstructure.Decode(resp.Data, &account)
+	stm.MapToStruct(resp.Data, &account)
 	accountClaims, err := jwt.DecodeAccountClaims(account.JWT)
 	if err != nil {
 		return err
@@ -860,7 +869,7 @@ func checkUserJWTForAccount(b *NatsBackend, reqStorage logical.Storage, operator
 		return fmt.Errorf("error reading user JWT: %s", resp.Error().Error())
 	}
 	var user JWTData
-	mapstructure.Decode(resp.Data, &user)
+	stm.MapToStruct(resp.Data, &user)
 	userClaims, err := jwt.DecodeUserClaims(user.JWT)
 	if err != nil {
 		return err
@@ -869,4 +878,20 @@ func checkUserJWTForAccount(b *NatsBackend, reqStorage logical.Storage, operator
 		return fmt.Errorf("user JWT does not reference account")
 	}
 	return nil
+}
+
+func Test_UnmarshalIssueUserParameters(t *testing.T) {
+	assert := assert.New(t)
+	jsonClaims :=
+		`{
+		  "User": {
+			"Subs": -1,
+			"Data": -1,
+			"Payload": -1
+		  }
+	  }`
+	claims := &userv1.UserClaims{}
+	err := json.Unmarshal([]byte(jsonClaims), claims)
+	assert.Nil(err)
+	fmt.Printf("%+v\n", claims)
 }

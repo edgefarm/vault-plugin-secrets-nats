@@ -6,28 +6,29 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
+	"github.com/rs/zerolog/log"
 )
 
 // JWTStorage represents a JWT stored in the backend
 type JWTStorage struct {
-	JWT string `mapstructure:"jwt"`
+	JWT string `json:"jwt"`
 }
 
 // JWTParameters represents the parameters for a JWT operation
 type JWTParameters struct {
-	Operator   string `mapstructure:"operator,omitempty"`
-	Account    string `mapstructure:"account,omitempty"`
-	User       string `mapstructure:"user,omitempty"`
-	JWTStorage `mapstructure:",squash"`
+	Operator string `json:"operator,omitempty"`
+	Account  string `json:"account,omitempty"`
+	User     string `json:"user,omitempty"`
+	JWTStorage
 }
 
 // JWTData represents the the data returned by a JWT operation
 type JWTData struct {
-	JWTStorage `mapstructure:",squash"`
+	JWTStorage
 }
 
 func pathJWT(b *NatsBackend) []*framework.Path {
@@ -52,7 +53,7 @@ func createResponseJWTData(jwt *JWTStorage) (*logical.Response, error) {
 	}
 
 	rval := map[string]interface{}{}
-	err := mapstructure.Decode(d, &rval)
+	err := stm.StructToMap(d, &rval)
 	if err != nil {
 		return nil, err
 	}
@@ -63,16 +64,14 @@ func createResponseJWTData(jwt *JWTStorage) (*logical.Response, error) {
 	return resp, nil
 }
 
-func addJWT(ctx context.Context, create bool, storage logical.Storage, path string, params JWTParameters) error {
+func addJWT(ctx context.Context, storage logical.Storage, path string, params JWTParameters) error {
 	jwt, err := getFromStorage[JWTStorage](ctx, storage, path)
 	if err != nil {
 		return err
 	}
 
 	if jwt == nil {
-		if !create {
-			return fmt.Errorf("jwt does not exist")
-		}
+		log.Info().Msg("JWT does not exist. creating new one")
 		jwt = &JWTStorage{}
 	}
 

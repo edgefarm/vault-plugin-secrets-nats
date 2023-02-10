@@ -2,11 +2,13 @@ package natsbackend
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
+	accountv1 "github.com/edgefarm/vault-plugin-secrets-nats/pkg/claims/account/v1alpha1"
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/jwt/v2"
 	"github.com/stretchr/testify/assert"
 )
@@ -80,7 +82,7 @@ func TestCRUDAccountIssue(t *testing.T) {
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueAccountParameters{}, &request)
+		stm.StructToMap(&IssueAccountParameters{}, &request)
 
 		//////////////////////////
 		// That will be expected
@@ -89,8 +91,7 @@ func TestCRUDAccountIssue(t *testing.T) {
 			Operator:      "op1",
 			Account:       "ac1",
 			UseSigningKey: "",
-			SigningKeys:   []string(nil),
-			Claims:        jwt.AccountClaims{},
+			Claims:        accountv1.AccountClaims{},
 			Status: IssueAccountStatus{
 				Account: IssueStatus{
 					Nkey: true,
@@ -126,23 +127,26 @@ func TestCRUDAccountIssue(t *testing.T) {
 		//////////////////////////////////
 		// Compare the expected and current
 		//////////////////////////////////
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		assert.Equal(t, expected, current)
 
 		//////////////////////////
 		// That will be requested
 		//////////////////////////
-		mapstructure.Decode(IssueAccountParameters{
-			Claims: jwt.AccountClaims{
-				Account: jwt.Account{
-					Limits: jwt.OperatorLimits{
-						AccountLimits: jwt.AccountLimits{
+		issue := IssueAccountParameters{
+			Claims: accountv1.AccountClaims{
+				Account: accountv1.Account{
+					Limits: accountv1.OperatorLimits{
+						AccountLimits: accountv1.AccountLimits{
 							Imports: 10,
 						},
 					},
 				},
 			},
-		}, &request)
+		}
+		tmp, err := json.Marshal(issue)
+		assert.Nil(t, err)
+		json.Unmarshal(tmp, &request)
 
 		//////////////////////////
 		// That will be expected
@@ -150,10 +154,10 @@ func TestCRUDAccountIssue(t *testing.T) {
 		expected = IssueAccountData{
 			Operator: "op1",
 			Account:  "ac1",
-			Claims: jwt.AccountClaims{
-				Account: jwt.Account{
-					Limits: jwt.OperatorLimits{
-						AccountLimits: jwt.AccountLimits{
+			Claims: accountv1.AccountClaims{
+				Account: accountv1.Account{
+					Limits: accountv1.OperatorLimits{
+						AccountLimits: accountv1.AccountLimits{
 							Imports: 10,
 						},
 					},
@@ -193,7 +197,7 @@ func TestCRUDAccountIssue(t *testing.T) {
 		//////////////////////////////////
 		// Compare the expected and current
 		//////////////////////////////////
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		assert.Equal(t, expected, current)
 
 		//////////////////////////////////
@@ -393,7 +397,7 @@ func TestAccountBeforeOperatorCreatingSysAccount(t *testing.T) {
 		// 2. During creating of the operator issue, the operators nkey and JWT is created. The operator also creates
 		// the sys account and puts the sys account's information in it's JWT.
 		// 2.1 create operator and let it create the sys account
-		mapstructure.Decode(IssueOperatorParameters{
+		stm.StructToMap(&IssueOperatorParameters{
 			CreateSystemAccount: true,
 		}, &request)
 
@@ -451,7 +455,7 @@ func TestAccountBeforeOperatorCreatingSysAccount(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		op1Claims, err := jwt.DecodeOperatorClaims(current.JWT)
 		assert.NoError(t, err)
 		// get sys account public key
@@ -464,7 +468,7 @@ func TestAccountBeforeOperatorCreatingSysAccount(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		var sysAccount JWTData
-		mapstructure.Decode(resp.Data, &sysAccount)
+		stm.MapToStruct(resp.Data, &sysAccount)
 		sysAccountClaims, err := jwt.DecodeAccountClaims(sysAccount.JWT)
 		assert.NoError(t, err)
 		assert.Equal(t, op1Claims.SystemAccount, sysAccountClaims.Subject)
@@ -506,7 +510,7 @@ func TestAccountBeforeOperatorCreatingSysAccount(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 
-		mapstructure.Decode(resp.Data, &acountJWT)
+		stm.MapToStruct(resp.Data, &acountJWT)
 		ac1Claims, err := jwt.DecodeAccountClaims(acountJWT.JWT)
 		assert.NoError(t, err)
 		assert.Equal(t, ac1Claims.Issuer, op1Claims.Subject)
@@ -520,7 +524,7 @@ func TestAccountBeforeOperatorCreatingSysAccount(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
-		mapstructure.Decode(resp.Data, &acountJWT)
+		stm.MapToStruct(resp.Data, &acountJWT)
 		ac2Claims, err := jwt.DecodeAccountClaims(acountJWT.JWT)
 		assert.NoError(t, err)
 		assert.Equal(t, ac2Claims.Issuer, op1Claims.Subject)
@@ -631,7 +635,7 @@ func TestAccountBeforeOperatorAndSysAccount(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		op1Claims, err := jwt.DecodeOperatorClaims(current.JWT)
 		assert.NoError(t, err)
 		assert.Equal(t, op1Claims.SystemAccount, "")
@@ -683,7 +687,7 @@ func TestAccountBeforeOperatorAndSysAccount(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
-		mapstructure.Decode(resp.Data, &current)
+		stm.MapToStruct(resp.Data, &current)
 		op1Claims, err = jwt.DecodeOperatorClaims(current.JWT)
 		assert.NoError(t, err)
 		// get sys account public key
@@ -696,7 +700,7 @@ func TestAccountBeforeOperatorAndSysAccount(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		var sysAccount JWTData
-		mapstructure.Decode(resp.Data, &sysAccount)
+		stm.MapToStruct(resp.Data, &sysAccount)
 		sysAccountClaims, err := jwt.DecodeAccountClaims(sysAccount.JWT)
 		assert.NoError(t, err)
 		assert.Equal(t, op1Claims.SystemAccount, sysAccountClaims.Subject)
@@ -711,9 +715,55 @@ func TestAccountBeforeOperatorAndSysAccount(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
 		var ac1 JWTData
-		mapstructure.Decode(resp.Data, &ac1)
+		stm.MapToStruct(resp.Data, &ac1)
 		ac1Claims, err := jwt.DecodeAccountClaims(ac1.JWT)
 		assert.NoError(t, err)
 		assert.Equal(t, ac1Claims.Issuer, op1Claims.Subject)
 	})
+}
+
+func Test_UnmarshalIssueAccountParameters(t *testing.T) {
+	assert := assert.New(t)
+	jsonClaims :=
+		`{
+			"Account": {
+			  "Limits": {
+				"Subs": -1,
+				"Conn": -1,
+				"LeafNodeConn": -1,
+				"Data": -1,
+				"Payload": -1,
+				"WildcardExports": true,
+				"Imports": -1,
+				"Exports": -1
+			  },
+			  "Exports": [
+				{
+				  "Name": "account-monitoring-streams",
+				  "Subject": "$SYS.ACCOUNT.*.>",
+				  "Type": "stream",
+				  "AccountTokenPosition": 3,
+				  "Info": {
+					"Description": "Account specific monitoring stream",
+					"InfoURL": "https://docs.nats.io/nats-server/configuration/sys_accounts"
+				  }
+				},
+				{
+				  "Name": "account-monitoring-services",
+				  "Subject": "$SYS.ACCOUNT.*.*",
+				  "Type": "service",
+				  "ResponseType": "Stream",
+				  "AccountTokenPosition": 4,
+				  "Info": {
+					"Description": "Account specific monitoring stream",
+					"InfoURL": "https://docs.nats.io/nats-server/configuration/sys_accounts"
+				  }
+				}
+			  ]
+			}
+		  }`
+	claims := &accountv1.AccountClaims{}
+	err := json.Unmarshal([]byte(jsonClaims), claims)
+	assert.Nil(err)
+	fmt.Printf("%+v\n", claims)
 }

@@ -3,9 +3,9 @@ package natsbackend
 import (
 	"context"
 
+	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
-	"github.com/mitchellh/mapstructure"
 	"github.com/nats-io/nkeys"
 )
 
@@ -74,17 +74,12 @@ func (b *NatsBackend) pathAddOperatorSigningNkey(ctx context.Context, req *logic
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
-	create := false
-	if req.Operation == logical.CreateOperation {
-		create = true
-	}
-
-	err = addOperatorSigningNkey(ctx, create, req.Storage, params)
+	err = addOperatorSigningNkey(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingNkeyFailedError), nil
 	}
@@ -98,7 +93,7 @@ func (b *NatsBackend) pathReadOperatorSigningNkey(ctx context.Context, req *logi
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -122,7 +117,7 @@ func (b *NatsBackend) pathListOperatorSigningNkeys(ctx context.Context, req *log
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -142,7 +137,7 @@ func (b *NatsBackend) pathDeleteOperatorSigningNkey(ctx context.Context, req *lo
 	}
 
 	var params NkeyParameters
-	err = mapstructure.Decode(data.Raw, &params)
+	err = stm.MapToStruct(data.Raw, &params)
 	if err != nil {
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
@@ -165,9 +160,9 @@ func deleteOperatorSigningNkey(ctx context.Context, storage logical.Storage, par
 	return deleteNkey(ctx, storage, path)
 }
 
-func addOperatorSigningNkey(ctx context.Context, create bool, storage logical.Storage, params NkeyParameters) error {
+func addOperatorSigningNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) error {
 	path := getOperatorSigningNkeyPath(params.Operator, params.Signing)
-	return addNkey(ctx, create, storage, path, nkeys.PrefixByteOperator, params)
+	return addNkey(ctx, storage, path, nkeys.PrefixByteOperator, params, "operator")
 }
 
 func listOperatorSigningNkeys(ctx context.Context, storage logical.Storage, params NkeyParameters) ([]string, error) {
