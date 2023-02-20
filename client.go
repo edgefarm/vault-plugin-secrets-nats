@@ -1,4 +1,4 @@
-package natssecretsengine
+package natsbackend
 
 import (
 	nats "github.com/nats-io/nats.go"
@@ -6,7 +6,7 @@ import (
 
 // natsClient creates an object storing
 // the client.
-type natsClient struct {
+type NatsClient struct {
 	*nats.Conn
 }
 

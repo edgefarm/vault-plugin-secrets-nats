@@ -1,0 +1,47 @@
+version: v2beta1
+name: vault-plugin-secrets-nats
+
+pipelines:
+  deploy:
+    run: |-
+      run_dependencies --all
+      build_images --all -t $(git describe --always)
+      create_deployments --all
+  dev:
+    run: |-
+      run_dependencies --all
+      create_deployments --all
+      start_dev vault
+
+images:
+  vault:
+    image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault:dev
+    dockerfile: ./Dockerfile.dev
+  
+deployments:
+   vault:
+    helm:
+      values:
+        containers:
+        - image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault:dev
+    namespace: vault
+
+dev:
+  vault:
+    imageSelector: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault:dev
+    ports:
+    - port: "18200:8200"
+    sync:
+      - path: ./:/app
+        excludeFile: .gitignore
+    terminal:
+      command: ./devspace_start.sh
+    ssh: {}
+    proxyCommands:
+      - command: devspace
+      - command: kubectl
+      - command: helm
+      - command: git
+    namespace: vault
+
+

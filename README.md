@@ -1,5 +1,234 @@
-# Vault Plugin Secrets Nats
+[contributors-shield]: https://img.shields.io/github/contributors/edgefarm/vault-plugin-secrets-nats.svg?style=for-the-badge
+[contributors-url]: https://github.com/edgefarm/vault-plugin-secrets-nats/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/edgefarm/vault-plugin-secrets-nats.svg?style=for-the-badge
+[forks-url]: https://github.com/edgefarm/vault-plugin-secrets-nats/network/members
+[stars-shield]: https://img.shields.io/github/stars/edgefarm/vault-plugin-secrets-nats.svg?style=for-the-badge
+[stars-url]: https://github.com/edgefarm/vault-plugin-secrets-nats/stargazers
+[issues-shield]: https://img.shields.io/github/issues/edgefarm/vault-plugin-secrets-nats.svg?style=for-the-badge
+[issues-url]: https://github.com/edgefarm/vault-plugin-secrets-nats/issues
+[license-shield]: https://img.shields.io/github/license/edgefarm/vault-plugin-secrets-nats?logo=mit&style=for-the-badge
+[license-url]: https://opensource.org/licenses/MIT
 
-## Usage
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![MIT License][license-shield]][license-url]
 
-## License
+<!-- PROJECT LOGO -->
+<br />
+<p align="center">
+  <a href="https://github.com/edgefarm/vault-plugin-secrets-nats">
+    <img src="https://github.com/edgefarm/edgefarm/raw/beta/.images/EdgefarmLogoWithText.png" alt="Logo" height="112">
+  </a>
+
+  <h2 align="center">vault-plugin-secrets-nats</h2>
+
+  <p align="center">
+    vault-plugin-secrets-nats extends Hashicorp Vault with a secrets engine for Nats.
+  </p>
+  <hr />
+</p>
+
+# About The Project
+
+`vault-plugin-secrets-nats` is a Hashicorp Vault plugin that extends Vault with a secrets engine for [NATS](https://nats.io) for Nkey/JWT auth. 
+It is capable of generating NATS credentials for operators, accounts and users. The generated credentials are stored in Vault and can be revoked at any time.
+The plugin is also able to push the generated credentials to a NATS account server.
+
+## Features
+
+- Manage NATS nkey and jwt for operators, accounts and users
+- Give access to user creds files
+- Push generated credentials to a Nats account server
+
+# Getting Started
+
+The `nats` secrets engine generates Nats credentials dynamically.
+The plugin supports several resources, including: operators, accounts, users, NKeys, JWTs and creds, as well as signing keys for operators an accounts.
+
+There is a command structure to create, read update and delete operators, accounts, users and permissions based on entity paths.
+Please read the official [NATS documentation](https://docs.nats.io/running-a-nats-service/configuration/securing_nats/auth_intro/jwt) to understand the concepts of operators, accounts and users as well as the authentication process.
+A hand full of resources can be defined within the vault plugin:
+
+The resource of type `issue` represent entities that result in generation of nkey and JWTs.
+
+| Entity path                                                   | Description                                                                        | Operations          |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------- |
+| issue/operator                                                | List operator issues                                                               | list                |
+| issue/operator/\<operator\>/account                           | List account issues                                                                | list                |
+| issue/operator/\<operator\>/account/\<account\>/user          | List user issues within an account                                                 | list                |
+| issue/operator/\<operator\>                                   | Manage operator issues. See the `operator` section for more information.           | write, read, delete |
+| issue/operator/\<operator\>/account/\<account\>               | Manage account issues. See the `account` section for more information.             | write, read, delete |
+| issue/operator/\<operator\>/account/\<account\>/user/\<name\> | Manage user issues within an account. See the `user` section for more information. | write, read, delete |
+
+The resources of type `creds` represent user credentials that can be used to authenticate against a NATS server.
+
+| Entity path                                                 | Description       | Operations          |
+| ----------------------------------------------------------- | ----------------- | ------------------- |
+| creds/operator/\<operator>account/\<account\>/user          | List user creds   | List                |
+| creds/operator/\<operator>account/\<account\>/user/\<user\> | Manage user creds | write, read, update |
+
+Resouces of type `nkey` are either be generated by `issue`s or are imported and referenced by `issue`s during their creation.
+
+| Entity path                                                  | Description                    | Operations          |
+| ------------------------------------------------------------ | ------------------------------ | ------------------- |
+| nkey/operator                                                | List operator nkeys            | list                |
+| nkey/operator/\<operator>/signing                            | List operators' signing nkeys  | list                |
+| nkey/operator/\<operator>/account                            | List account nkeys             | list                |
+| nkey/operator/\<operator>/account/\<account\>/signing        | List accounts' signing nkeys   | list                |
+| nkey/operator/\<operator>/account/\<account\>/user           | List user nkeys                | list                |
+| nkey/operator/\<operator>                                    | Manage operator nkey           | write, read, delete |
+| nkey/operator/\<operator>/signing/\<key\>                    | Manage operator signing nkeys  | write, read, delete |
+| nkey/operator/\<operator>account/\<account\>                 | Manage accounts' nkey          | write, read, delete |
+| nkey/operator/\<operator>account/\<account\>/signing/\<key\> | Manage accounts' signing nkeys | write, read, delete |
+| nkey/operator/\<operator>account/\<account\>/user/\<user\>   | Manage user nkey               | write, read, delete |
+
+Resource of type 'jwt' are either be generated by `issue`s or are imported and referenced by `issue`s during their creation.
+
+| Entity path                                               | Description           | Operations          |
+| --------------------------------------------------------- | --------------------- | ------------------- |
+| jwt/operator                                              | List operator JWTs    | list                |
+| jwt/operator/\<operator>/account                          | List account JWTs     | list                |
+| jwt/operator/\<operator>/account/\<account\>/user         | List user JWTs        | list                |
+| jwt/operator/\<operator>                                  | Manage operator JWT   | write, read, delete |
+| jwt/operator/\<operator>account/\<account\>               | Manage accounts' JWTs | write, read, delete |
+| jwt/operator/\<operator>account/\<account\>/user/\<user\> | Manage user JWT       | write, read, delete |
+
+## ✔️ Prerequisites
+ex
+TODO
+
+## ⚙️ Configuration
+
+There are arguments that can be passed to the paths for `issue/` (operator, account, user), `creds/`, `jwt/` and `nkey/`.
+
+### Issues
+
+Issues can be created with an imported nkey. If the nkey is not present during the creation of the issue, a new nkey will be generated.
+**Note: if you don't provide any claims for an operator, account or user, the plugin will generate a default set of claims. The default claims are set to "you are not allowed to do anything".**
+
+#### **Operator**
+
+| Key               | Type        | Required | Default | Description                                                                                                              |
+| ----------------- | ----------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| syncAccountServer | bool        | false    | false   | If set to true, the plugin will push the generated credentials to the configured account server.                         |
+| claims            | json string | false    | {}      | Claims to be added to the operator's JWT. See [pkg/claims/operator/v1alpha1/api.go](pkg/claims/operator/v1alpha1/api.go) |
+
+#### **Account**
+
+| Key           | Type        | Required | Default | Description                                                                                                           |
+| ------------- | ----------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| useSigningKey | string      | false    | ""      | Operator signing key's name, e.g. "opsk1"                                                                             |
+| claims        | json string | false    | {}      | Claims to be added to the account's JWT. See [pkg/claims/account/v1alpha1/api.go](pkg/claims/account/v1alpha1/api.go) |
+
+#### **User**
+
+| Key           | Type        | Required | Default | Description                                                                                                  |
+| ------------- | ----------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| useSigningKey | bool        | false    | false   | Account signing key's name, e.g. "opsk1"                                                                     |
+| claims        | json string | false    | {}      | Claims to be added to the user's JWT. See [pkg/claims/user/v1alpha1/api.go](pkg/claims/user/v1alpha1/api.go) |
+
+### Nkey
+
+| Key  | Type   | Required | Default | Description                                           |
+| ---- | ------ | -------- | ------- | ----------------------------------------------------- |
+| seed | string | false    | ""      | Seed to import. If not set, then a new one is created |
+
+### JWT
+
+| Key | Type   | Required | Default | Description                                          |
+| --- | ------ | -------- | ------- | ---------------------------------------------------- |
+| jwt | string | false    | ""      | JWT to import. If not set, then a new one is created |
+
+### Creds
+
+| Key   | Type   | Required | Default | Description                                                 |
+| ----- | ------ | -------- | ------- | ----------------------------------------------------------- |
+| creds | string | false    | ""      | Creds file to import. If not set, then a new one is created |
+
+## 🎯 Installation
+
+TODO
+
+## 🧪 Testing
+
+TODO
+
+# 💡 Example
+
+Read this section to learn how to use `vault-plugin-secrets-nats` by trying out the example.
+See the `example` directory for a full example. The example runs a locally running Vault server and a NATS server.
+
+An operator and a sys account is created. Both are using signing keys. A sys account user called `default-push` is created 
+that is used to push the credentials to the NATS account server.
+The NATS server is configured to use the generated credentials.
+After the NATS server is up and running a new "normal" account and a user is created and pushed to the NATS server.
+The user is then able to connect to the NATS server.
+
+Note: please make sure that you have `docker` installed as the example starts a local NATS server using docker.
+
+## Setup
+
+To use the plugin, you must first enable it with Vault. This example mounts the plugin at the path `nats-secrets`:
+
+First run `make` to start a Vault server in dev mode that is pre-configured to use the plugin.
+
+```console
+$ make
+```
+
+Then, enable the plugin:
+
+```console
+$ export VAULT_ADDR='http://127.0.0.1:8200'
+$ vault secrets enable -path=nats-secrets vault-plugin-secrets-nats
+Success! Enabled the vault-plugin-secrets-nats secrets engine at: nats-secrets/
+```
+
+## Run the example
+
+```console
+$ cd examples
+$ ./config.sh
+> Creating NATS resources (operator and sysaccount)
+Success! Data written to: nats-secrets/issue/operator/myop
+Success! Data written to: nats-secrets/issue/operator/myop/account/sys
+Success! Data written to: nats-secrets/issue/operator/myop/account/sys/user/default-push
+> Generate NATS server config with preloaded operator and sys account settings
+> Starting up NATS server
+9402e7608bfe8bc391c862eb01f4dbac19e16210a431fb9d84384e009f013a3d
+a5bd1e08562382aaf6b40f35203afd479bfa847fddf72a617dbd083446863071
+> Creating normal account and user
+Success! Data written to: nats-secrets/issue/operator/myop/account/myaccount
+Success! Data written to: nats-secrets/issue/operator/myop/account/myaccount/user/user
+> Exporting user creds file
+> Publishing using user creds file
+12:57:09 Published 3 bytes to "foo"
+> Cleaning up...
+nats
+nats
+> done.
+
+```
+# 🐞 Debugging
+
+TODO
+
+# 📜 History
+
+TODO
+
+# 🤝🏽 Contributing
+
+Code contributions are very much **welcome**.
+
+1. Fork the Project
+2. Create your Branch (`git checkout -b AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature")
+4. Push to the Branch (`git push origin AmazingFeature`)
+5. Open a Pull Request targetting the `beta` branch.
+
+# 🫶 Acknowledgements
+
+TODO

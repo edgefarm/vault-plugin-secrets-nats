@@ -1,0 +1,11 @@
+{
+    "syncAccountServer": true,
+    "claims": {
+        "operator": {
+            "accountServerUrl": "nats://localhost:4222",
+            "signingKeys": [
+                "opsk1"
+            ]
+        }
+    }
+}

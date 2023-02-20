@@ -19,3 +19,10 @@
 
 # Go workspace file
 go.work
+
+build/vault/plugins
+.vscode
+
+
+# Ignore DevSpace cache and log folder
+.devspace/

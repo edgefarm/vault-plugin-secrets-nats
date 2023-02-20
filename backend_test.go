@@ -1,4 +1,4 @@
-package natssecretsengine
+package natsbackend
 
 import (
 	"context"
@@ -19,7 +19,7 @@ const (
 
 // getTestBackend will help you construct a test backend object.
 // Update this function with your target backend.
-func getTestBackend(tb testing.TB) (*natsBackend, logical.Storage) {
+func getTestBackend(tb testing.TB) (*NatsBackend, logical.Storage) {
 	tb.Helper()
 
 	config := logical.TestBackendConfig()
@@ -32,7 +32,7 @@ func getTestBackend(tb testing.TB) (*natsBackend, logical.Storage) {
 		tb.Fatal(err)
 	}
 
-	return b.(*natsBackend), config.StorageView
+	return b.(*NatsBackend), config.StorageView
 }
 
 // runAcceptanceTests will separate unit tests from
