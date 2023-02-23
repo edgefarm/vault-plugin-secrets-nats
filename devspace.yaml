@@ -1,47 +1,280 @@
 version: v2beta1
 name: vault-plugin-secrets-nats
 
+vars:
+  ca_root:
+    command: echo $HOME/.devspace/ca/
+  creds_dir:
+    command: echo .devspace/creds/
+
+commands:
+  help: |-
+    #!/bin/bash
+    set -e
+    GREEN='\033[0;32m'
+    BRED='\033[3;31m'
+    BGREEN='\033[1;32m'
+    GREY='\033[0;36m'
+    BOLD='\033[1m'
+    NC='\033[0m' # No Color
+    echo -e "${BGREEN}Usage of ${BRED}edgefarm.core:${NC}"
+    echo -e "${GREEN} General cluster commands:${NC}"
+    echo -e "${BOLD}  devspace run create-kind-cluster                    ${GREY}Creates a local running Kubernetes cluster with kind${NC}"
+    echo -e "${BOLD}  devspace run delete-kind-cluster                    ${GREY}Deletes the local running Kubernetes cluster with kind${NC}"
+    echo -e "${BOLD}  devspace run-pipeline init                          ${GREY}Deploy some basic resources to the cluster${NC}"
+    echo -e "${GREEN} EdgeFarm related commands:${NC}"
+    echo -e "${BOLD}  devspace run-pipeline deploy-vault                  ${GREY}Deploy the vault with NATS secrets plugin${NC}"
+    echo -e "${BOLD}  devspace run-pipeline deploy-nats                   ${GREY}Deploy the deploy preconfigured a NATS server${NC}"
+    echo -e "${BOLD}  devspace run-pipeline create-custom-nats-account    ${GREY}Create a custom NATS account and user${NC}"
+
+  check-prerequisites: |-
+    #!/bin/bash
+    set -e
+    # Check if kubectl is installed
+    if ! command -v kubectl &> /dev/null
+    then
+        echo "kubectl could not be found. Please install kubectl."
+        exit
+    fi
+    # Check if mkcert is installed
+    if ! command -v mkcert &> /dev/null
+    then
+        echo "mkcert could not be found. Please install mkcert (https://github.com/FiloSottile/mkcert)."
+        exit
+    fi
+    # Check if jq is installed
+    if ! command -v jq &> /dev/null
+    then
+        echo "jq could not be found. Please install jq (https://stedolan.github.io/jq/)."
+        exit
+    fi
+    # Check if helm is installed
+    if ! command -v helm &> /dev/null
+    then
+        echo "helm could not be found. Please install helm (https://helm.sh/docs/intro/install/)."
+        exit
+    fi
+    # Check if kustomize is installed
+    if ! command -v kustomize &> /dev/null
+    then
+        echo "kustomize could not be found. Please install kustomize (https://kubectl.docs.kubernetes.io/installation/kustomize/)."
+        exit
+    fi
+    # Check if docker is installed
+    if ! command -v docker &> /dev/null
+    then
+        echo "docker could not be found. Please install docker (https://docs.docker.com/get-docker/)."
+        exit
+    fi
+
+  create-kind-cluster: |-
+    #!/bin/bash
+    set -e
+
+    devspace run check-prerequisites
+
+    # Check if kind is installed
+    if ! command -v kind &> /dev/null
+    then
+        echo "kind could not be found. Please install kind (https://kind.sigs.k8s.io/docs/user/quick-start/#installation)."
+        exit
+    fi
+
+    kind create cluster --name vault --image kindest/node:v1.24.7 --config dev/kind/config.yaml
+    kubectl config use-context kind-vault
+    kubectl config set-context --current --namespace kind-vault
+
+  delete-kind-cluster: |-
+    #!/bin/bash
+    set -e
+
+    kind delete cluster --name vault || true
+    kubectl config delete-context kind-vault 2>/dev/null || true
+    kubectl config delete-cluster kind-vault 2>/dev/null || true
+    kubectl config delete-user admin@kind-vault 2>/dev/null || true
+
+functions:
+  wait_for_crd: |-
+    #!/bin/bash
+    set -e
+    echo "wait for crd/$1"
+    until kubectl wait --for=condition=established "crd/$1" --timeout=60s 2>/dev/null; do echo -n "." && sleep 2; done
+
+  wait_for_deployment: |-
+    #!/bin/bash
+    set -e
+    echo "wait for deployment/$1 (ns: $2)"
+    until kubectl wait --for=condition=available deployment/$1 -n $2 --timeout=60s 2>/dev/null; do echo -n "." && sleep 2; done
+
+  wait_for_pod: |-
+    #!/bin/bash
+    set -e
+    echo "wait for pod $1 (ns: $2)"
+    until kubectl wait --for=condition=ready pod -n $2 $1 --timeout=60s 2>/dev/null; do echo -n "." && sleep 2; done
+
+  wait_for_ressource: |-
+    #!/bin/bash
+    set -e
+    echo "wait for ressource $1 (ns: $2)"
+    until kubectl get $1 -n $2 2>/dev/null; do echo -n "." && sleep 2; done;
+
+  wait_for_secret_key: |-
+    #!/bin/bash
+    set -e
+    echo "wait for key $3 in secret $1 (ns: $2)"
+    until [[ $(kubectl get secret/$1 -n $2 -o yaml | grep $3 | wc -l) -ge 1 ]] ; do echo -n "." && sleep 2; done
+    echo " done"
+
+  import_root_ca: |-
+    # usage: import_root_ca <CAROOT> <secret name> <namespace>
+    #!/usr/bin/env bash
+    set -e
+    set -u
+    export CAROOT=${1}
+    if [ "$#" -ne 3 ]; then
+        echo "Illegal number of parameters"
+        echo "import_root_ca <CAROOT> <ca_secret_name> <ca_secret_namespace>"
+        exit 1
+    fi
+    if ! [ -d "${CAROOT}" ]; then
+        echo "Creating self-signed CA ${2}"
+        mkdir -p ${CAROOT}
+        mkcert || true
+    fi
+    kubectl -n ${3} create secret tls ${2} \
+        --key=${CAROOT}/rootCA-key.pem \
+        --cert=${CAROOT}/rootCA.pem \
+        --dry-run=client --output yaml | kubectl apply -f -
+
+  init_ca: |-
+    # usage init_ca <CAROOT>
+    #!/usr/bin/env bash
+    set -e
+    set -u
+    export CAROOT=${1}
+
+    if [ "$#" -ne 1 ]; then
+      echo "Illegal number of parameters"
+      echo "init_ca"
+      exit 1
+    fi
+    echo "installing ${CAROOT}"
+    mkcert -install || true
+
 pipelines:
-  deploy:
-    run: |-
-      run_dependencies --all
-      build_images --all -t $(git describe --always)
-      create_deployments --all
-  dev:
-    run: |-
-      run_dependencies --all
-      create_deployments --all
-      start_dev vault
+  init: |-
+    #!/bin/bash
+    set -e
+    devspace run check-prerequisites
+    # install cert-manager and nginx-ingress
+    create_deployments cert-manager nginx-ingress
+    wait_for_deployment cert-manager cert-manager
+    wait_for_deployment cert-manager-cainjector cert-manager
+    wait_for_deployment cert-manager-webhook cert-manager
+    wait_for_crd certificates.cert-manager.io
+    wait_for_pod "-l app.kubernetes.io/instance=ingress-nginx -l app.kubernetes.io/component=controller" ingress-nginx
+    # install root certificate for cert-manager
+    init_ca ${ca_root}
+    import_root_ca ${ca_root} root-ca cert-manager
+    create_deployments cert-manager-config
 
-images:
-  vault:
-    image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault:dev
-    dockerfile: ./Dockerfile.dev
-  
+  deploy-vault: |-
+    #!/bin/bash
+    set -e
+    devspace run check-prerequisites
+    COLOR='\033[0;93m'
+    NC='\033[0m'
+    create_deployments vault-operator
+    wait_for_pod "-l app.kubernetes.io/instance=vault-operator" vault
+    create_deployments vault-config
+    until kubectl wait --for=condition=ready pods -n vault -l vault_cr=vault --timeout=60s 2>/dev/null; do echo -n "." && sleep 2; done
+    wait_for_secret_key bank-vaults vault vault-root
+    echo "vault-root-token: $(kubectl get secrets bank-vaults -n vault -o jsonpath={.data.vault-root} | base64 --decode)"
+
+  deploy-nats: |-
+    #!/bin/bash
+    set -e
+    kubectl port-forward -n vault svc/vault 8200:8200 &
+    pid=$(ps | grep kubectl | cut -d ' ' -f3)
+    trap '{
+        echo killing $pid
+        kill $pid
+    }' EXIT
+    export VAULT_ADDR=https://127.0.0.1:8200
+    VAULT_TOKEN=$(kubectl get secrets bank-vaults -n vault -o jsonpath={.data.vault-root} | base64 --decode)
+    echo ${VAULT_TOKEN} | vault login -
+    vault write nats-secrets/issue/operator/myop @dev/manifests/nats/resources/operator/operator.json
+    vault write nats-secrets/issue/operator/myop/account/sys @dev/manifests/nats/resources/sysaccount/sysaccount.json
+    vault write nats-secrets/issue/operator/myop/account/sys/user/default-push @dev/manifests/nats/resources/sysaccount/default-push.json
+    OPERATOR_JWT=$(vault read -format=json nats-secrets/jwt/operator/myop  | jq -r .data.jwt)
+    SYS_ACCOUNT_PUBLIC_KEY=$(vault read -format=json nats-secrets/nkey/operator/myop/account/sys  | jq -r .data.publicKey)
+    SYS_ACCOUNT_JWT=$(vault read -format=json nats-secrets/jwt/operator/myop/account/sys  | jq -r .data.jwt)
+
+    TEMPLATE=$(sed "s/OPERATOR_JWT/$OPERATOR_JWT/g" dev/manifests/nats/configmap.yaml.template)
+    TEMPLATE=$(sed "s/SYS_ACCOUNT_PUBLIC_KEY/$SYS_ACCOUNT_PUBLIC_KEY/g" <<< $TEMPLATE)
+    TEMPLATE=$(sed "s/SYS_ACCOUNT_JWT/$SYS_ACCOUNT_JWT/g" <<< $TEMPLATE)
+
+    echo "$TEMPLATE" > dev/manifests/nats/configmap.yaml
+    create_deployments nats
+
+  create-custom-nats-account: |-
+    #!/bin/bash
+    set -e
+    kubectl port-forward -n vault svc/vault 8200:8200 &
+    pid=$(ps | grep kubectl | cut -d ' ' -f3)
+    trap '{
+        echo killing $pid
+        kill $pid
+    }' EXIT
+
+    export VAULT_ADDR=https://127.0.0.1:8200
+    VAULT_TOKEN=$(kubectl get secrets bank-vaults -n vault -o jsonpath={.data.vault-root} | base64 --decode)
+    echo ${VAULT_TOKEN} | vault login -
+    vault write nats-secrets/issue/operator/myop/account/myaccount @dev/manifests/nats/resources/account/myaccount.json
+    vault write nats-secrets/issue/operator/myop/account/myaccount/user/myuser @dev/manifests/nats/resources/account/myuser.json
+    mkdir -p ${creds_dir}
+    vault read -field creds nats-secrets/creds/operator/myop/account/myaccount/user/myuser > ${creds_dir}/creds
+
 deployments:
-   vault:
+  local-path-provisioner:
+    kubectl:
+      manifests:
+        - "https://raw.githubusercontent.com/rancher/local-path-provisioner/v0.0.22/deploy/local-path-storage.yaml"
+    namespace: kube-system
+
+  cert-manager:
+    kubectl:
+      manifests:
+        - https://github.com/cert-manager/cert-manager/releases/download/v1.9.1/cert-manager.yaml
+    namespace: cert-manager
+
+  cert-manager-config:
+    kubectl:
+      manifests:
+        - dev/manifests/cert-manager/
+    namespace: cert-manager
+
+  nginx-ingress:
+    kubectl:
+      manifests:
+        - https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+    namespace: ingress-nginx
+
+  vault-operator:
     helm:
-      values:
-        containers:
-        - image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault:dev
+      chart:
+        name: vault-operator
+        repo: https://kubernetes-charts.banzaicloud.com
     namespace: vault
 
-dev:
-  vault:
-    imageSelector: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault:dev
-    ports:
-    - port: "18200:8200"
-    sync:
-      - path: ./:/app
-        excludeFile: .gitignore
-    terminal:
-      command: ./devspace_start.sh
-    ssh: {}
-    proxyCommands:
-      - command: devspace
-      - command: kubectl
-      - command: helm
-      - command: git
+  vault-config:
+    kubectl:
+      manifests:
+        - dev/manifests/vault/
     namespace: vault
 
-
+  nats:
+    kubectl:
+      manifests:
+        - dev/manifests/nats/
+    namespace: nats

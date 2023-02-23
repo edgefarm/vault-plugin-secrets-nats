@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["Lint Commit Messages"]
+    branches:
+      - main
+      - beta
+    types:
+      - completed
+
+jobs:
+  on-success:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "lts/*"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Go 1.18
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+
+      - name: Run Tests
+        run: |
+          make test
+
+      - name: Build the artifacts
+        run: |
+          make build
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.HELM_CHART_RELEASER_TOKEN }}
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |-
+          #!/bin/bash
+          set -e
+          npm install @semantic-release/exec eclass/semantic-release-docker -D
+          npx -c semantic-release
