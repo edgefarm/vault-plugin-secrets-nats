@@ -25,7 +25,7 @@
   <h2 align="center">vault-plugin-secrets-nats</h2>
 
   <p align="center">
-    vault-plugin-secrets-nats extends Hashicorp Vault with a secrets engine for Nats.
+    vault-plugin-secrets-nats extends Hashicorp Vault with a secrets engine for NATS.
   </p>
   <hr />
 </p>
@@ -34,17 +34,19 @@
 
 `vault-plugin-secrets-nats` is a Hashicorp Vault plugin that extends Vault with a secrets engine for [NATS](https://nats.io) for Nkey/JWT auth. 
 It is capable of generating NATS credentials for operators, accounts and users. The generated credentials are stored in Vault and can be revoked at any time.
-The plugin is also able to push the generated credentials to a NATS account server.
+The plugin is also able to push the generated credentials to a NATS account server. 
+
+A similar project is the [`nsc` tool by NATS](https://github.com/nats-io/nsc) but the `nsc` tool doesn't provide a way to store the generated credentials other than file based. The `nsc` tool is not automated and heavily relies on manual steps.
 
 ## Features
 
 - Manage NATS nkey and jwt for operators, accounts and users
 - Give access to user creds files
-- Push generated credentials to a Nats account server
+- Push generated credentials to a NATS account server
 
 # Getting Started
 
-The `nats` secrets engine generates Nats credentials dynamically.
+The `nats` secrets engine generates NATS credentials dynamically.
 The plugin supports several resources, including: operators, accounts, users, NKeys, JWTs and creds, as well as signing keys for operators an accounts.
 
 There is a command structure to create, read update and delete operators, accounts, users and permissions based on entity paths.
@@ -147,17 +149,142 @@ Issues can be created with an imported nkey. If the nkey is not present during t
 | ----- | ------ | -------- | ------- | ----------------------------------------------------------- |
 | creds | string | false    | ""      | Creds file to import. If not set, then a new one is created |
 
-## 🎯 Installation
+## 🎯 Installation and Setup
 
-TODO
+In order to use this plugin you need to register it with Vault.
+Configure your vault server to have a valid `plugins_directory` configuration. 
+
+**Note: you might want to set `api_addr` to your listening address and `disable_mlock` to `true` in the `vault` configuration to be able to use the plugin.**
+
+### Install from release
+
+Download the latest stable release from the [release]() page and put it into the `plugins_directory` of your vault server.
+
+```console
+SHA256SUM=$(sha256sum vault-plugin-secrets-nats | cut -d' ' -f1)
+vault plugin register -sha256 ${SHA256SUM} secret vault-plugin-secrets-nats
+vault secrets enable -path=nats-secrets vault-plugin-secrets-nats
+```
+
+**Note: you might use the `-tls-skip-verify` flag if you are using a self-signed certificate.**
+
+### Install from OCI image using bank-vaults in Kubernetes
+
+This project provides a custom built `vault` OCI image that includes the `vault-plugin-secrets-nats` plugin. See [here]() for available versions.
+The `plugins_directory` must be set to `/etc/vault/vault_plugins` in the `vault` configuration.
+
+This describes the steps to install the plugin using the `bank-vaults` operator. See [here](https://banzaicloud.com/docs/bank-vaults/operator/) for more information.
+Define the custom `vault` image in the `Vault` custom resource and configure 
+
+```yaml
+apiVersion: "vault.banzaicloud.com/v1alpha1"
+kind: "Vault"
+metadata:
+  name: "myVault"
+spec:
+  size: 1
+  # Use the custom vault image containing the NATS secrets plugin
+  image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets:latest
+  config:
+    disable_mlock: true
+    plugin_directory: "/etc/vault/vault_plugins"
+    listener:
+      tcp:
+        address: "0.0.0.0:8200"
+    api_addr: "https://0.0.0.0:8200"
+  externalConfig:
+    plugins:
+    - plugin_name: vault-plugin-secrets-nats
+      command: vault-plugin-secrets-nats --tls-skip-verify --ca-cert=/vault/tls/ca.crt
+      sha256: be9598c2cda1d58eed933def71290b1ae7c57a15fcecc0d1bbf320bd14df0b6e
+      type: secret
+    secrets:
+    - path: nats-secrets
+      type: plugin
+      plugin_name: vault-plugin-secrets-nats
+      description: NATS secrets backend
+  # ...
+```
+
+See the fule [dev/manifests/vault/vault.yaml](dev/manifests/vault/vault.yaml) for a full example of a `Vault` custom resource that can be used by the `vault-operator`.
 
 ## 🧪 Testing
 
-TODO
+To test the plugin in a production like environment you can spin up a local kind cluster that runs a production `vault` server with the plugin enabled and a NATS server the plugin writes account information to.
+
+**Note: you need to have `kind` and `devspace` installed.**
+
+The first step is to spin up the cluster with everything installed.
+
+```console
+# Create the cluster
+$ devspace run create-kind-cluster
+
+# Deploy initial stuff like ingress and cert-manager
+$ devspace run-pipeline init 
+
+# Deploy the vault-operator and vault instance
+$ devspace run-pipeline deploy-vault
+
+# Wait for the vault pods get ready
+$ kubectl get pods -n vault 
+
+# Check if the plugin is successfully loaded
+$ kubectl port-forward -n vault svc/vault 8200:8200 &
+$ PID=$!
+$ export VAULT_ADDR=https://127.0.0.1:8200
+$ VAULT_TOKEN=$(kubectl get secrets bank-vaults -n vault -o jsonpath='{.data.vault-root}' | base64 -d)
+$ echo $VAULT_TOKEN | vault login -
+$ vault secrets list
+Handling connection for 8200
+Path             Type                         Accessor                              Description
+----             ----                         --------                              -----------
+cubbyhole/       cubbyhole                    cubbyhole_ec217496                    per-token private secret storage
+identity/        identity                     identity_9123b895                     identity store
+nats-secrets/    vault-plugin-secrets-nats    vault-plugin-secrets-nats_d8584dcc    NATS secrets backend
+sys/             system                       system_5bd0e10f                       system endpoints used for control, policy and debugging
+$ pkill $PID
+
+# Deploy the NATS server
+$ devspace run-pipeline deploy-nats
+
+# Wait for the NATS server to be ready
+$ kubectl get pods -n nats
+```
+
+Once this is working create a account and a user and act as a third party that uses the creds outside the cluster.
+
+```console
+# Create the account and user and get the creds for the user
+$ devspace run-pipeline test-custom-nats-account
+$ kubectl port-forward -n nats svc/nats 4222:4222 &
+$ PID=$!
+
+# Publish and subscribe using the creds previously fetched
+$ docker run -it -d --rm --name nats-subscribe --network host -v $(pwd)/.devspace/creds/creds:/creds natsio/nats-box:0.13.4 nats sub -s nats://localhost:4222 --creds /creds foo 
+$ docker run --rm -d -it --name nats-publish --network host -v $(pwd)/.devspace/creds/creds:/creds natsio/nats-box:0.13.4 nats pub -s nats://localhost:4222 --creds /creds foo --count 3 "Message {{Count}} @ {{Time}}"
+
+# Log output shows that authenticating with the creds file works for pub and sub
+$ docker logs nats-subscribe
+14:49:35 Subscribing on foo 
+[#1] Received on "foo"
+Message 1 @ 2:49PM
+
+[#2] Received on "foo"
+Message 2 @ 2:49PM
+
+[#3] Received on "foo"
+Message 3 @ 2:49PM
+
+# Cleanup
+$ docker kill nats-subscribe
+$ pkill $PID
+
+```
 
 # 💡 Example
 
-Read this section to learn how to use `vault-plugin-secrets-nats` by trying out the example.
+Read this section to learn how to use `vault-plugin-secrets-nats` by trying out the example. 
 See the `example` directory for a full example. The example runs a locally running Vault server and a NATS server.
 
 An operator and a sys account is created. Both are using signing keys. A sys account user called `default-push` is created 
@@ -213,11 +340,13 @@ nats
 ```
 # 🐞 Debugging
 
-TODO
-
-# 📜 History
-
-TODO
+The recommended way to debug this plugin is to use write unit tests and debug them as standard go tests.
+If you like to debug the plugin in a running Vault instance you can use the following steps:
+  1. `make`
+  2. `make enable`
+  3. Attach to the process using your favorite debugger
+  4. Use vault CLI to interact with the plugin
+  5. Debug the plugin
 
 # 🤝🏽 Contributing
 
@@ -231,4 +360,6 @@ Code contributions are very much **welcome**.
 
 # 🫶 Acknowledgements
 
-TODO
+Thanks for the NATS developers for providing a really great way of solving many problems with communication.
+
+Also, thanks to the Vault developers for providing a great way of managing secrets and a great plugin system.

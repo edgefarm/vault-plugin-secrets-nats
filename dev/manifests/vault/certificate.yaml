@@ -1,0 +1,16 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: vault-server-tls
+spec:
+  secretName: vault-server-tls
+  dnsNames:
+    - vault.local
+    - vault
+    - "*.nip.io"
+    - vault.vault
+  ipAddresses:
+    - 127.0.0.1
+  issuerRef:
+    name: ca-issuer
+    kind: ClusterIssuer

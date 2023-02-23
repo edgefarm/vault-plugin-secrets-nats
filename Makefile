@@ -12,30 +12,19 @@ endif
 
 .DEFAULT_GOAL := all
 
+DOCKER_REGISTRY ?= siredmar
+VERSION ?= $(shell git describe --tags --always --dirty)
+
 all: fmt build start
 
 build:
-	GOOS=$(OS) GOARCH="$(GOARCH)" go build -o build/vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" cmd/vault-plugin-secrets-nats/main.go
+	CGO_ENABLED=0  GOOS=$(OS) GOARCH="$(GOARCH)" go build -o build/vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" -ldflags '-extldflags "-static"' cmd/vault-plugin-secrets-nats/main.go
 
-operator:
-	vault write -force nats-secrets/issue/operator/myop
-	vault read nats-secrets/issue/operator/myop
+docker: build
+	docker build -t $(DOCKER_REGISTRY)/vault-plugin-secrets-nats:$(VERSION) -f build/vault/Dockerfile .
 
-sysaccount:
-	vault write -force nats-secrets/issue/operator/myop/account/sys
-	vault read nats-secrets/issue/operator/myop/account/sys
-
-pushuser:
-	vault write -force nats-secrets/issue/operator/myop/account/sys/user/default-push
-	vault read nats-secrets/issue/operator/myop/account/sys/user/default-push
-
-account:
-	vault write -force nats-secrets/issue/operator/myop/account/myaccount
-	vault read nats-secrets/issue/operator/myop/account/myaccount
-
-user:
-	vault write -force nats-secrets/issue/operator/myop/account/myaccount/user/myuser
-	vault read nats-secrets/issue/operator/myop/account/myaccount/user/myuser
+push: docker
+	docker push $(DOCKER_REGISTRY)/vault-plugin-secrets-nats:$(VERSION)
 
 start: 
 	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./build/vault/plugins -log-level=trace -dev-listen-address=127.0.0.1:8200
