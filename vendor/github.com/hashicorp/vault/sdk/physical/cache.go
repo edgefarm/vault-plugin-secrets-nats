@@ -29,7 +29,6 @@ var cacheExceptionsPaths = []string{
 	"sys/expire/",
 	"core/poison-pill",
 	"core/raft/tls",
-	"core/license",
 }
 
 // CacheRefreshContext returns a context with an added value denoting if the
@@ -69,10 +68,12 @@ type TransactionalCache struct {
 }
 
 // Verify Cache satisfies the correct interfaces
-var _ ToggleablePurgemonster = (*Cache)(nil)
-var _ ToggleablePurgemonster = (*TransactionalCache)(nil)
-var _ Backend = (*Cache)(nil)
-var _ Transactional = (*TransactionalCache)(nil)
+var (
+	_ ToggleablePurgemonster = (*Cache)(nil)
+	_ ToggleablePurgemonster = (*TransactionalCache)(nil)
+	_ Backend                = (*Cache)(nil)
+	_ Transactional          = (*TransactionalCache)(nil)
+)
 
 // NewCache returns a physical cache of the given size.
 // If no size is provided, the default size is used.
@@ -182,7 +183,7 @@ func (c *Cache) Get(ctx context.Context, key string) (*Entry, error) {
 		return nil, err
 	}
 
-	// Cache the result
+	// Cache the result, even if nil
 	c.lru.Add(key, ent)
 
 	return ent, nil
