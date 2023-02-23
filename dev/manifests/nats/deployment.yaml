@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: nats
+  labels:
+    app.kubernetes.io/name: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:2.9.14-alpine3.17
+          imagePullPolicy: IfNotPresent
+          args:
+            - "-c"
+            - "/etc/nats-config/nats.conf"
+          volumeMounts:
+            - name: nats-config
+              mountPath: /etc/nats-config
+      volumes:
+        - name: nats-config
+          configMap:
+            name: nats-config

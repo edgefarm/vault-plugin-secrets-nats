@@ -1,0 +1,46 @@
+{
+  "branches": [
+    {
+      "name": "main"
+    },
+    {
+      "name": "beta",
+      "prerelease": true
+    }
+  ],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "docker build -t ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets ."
+      }
+    ],
+    [
+      "@eclass/semantic-release-docker",
+      {
+        "baseImageName": "vault-plugin-secrets-nats/vault-with-nats-secrets",
+        "registries": [
+          {
+            "url": "ghcr.io",
+            "imageName": "ghcr.io/vault-plugin-secrets-nats/vault-with-nats-secrets",
+            "user": "GITHUB_USER",
+            "password": "GITHUB_TOKEN"
+          }
+        ]
+      }
+    ],
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "build/vault/plugins/vault-plugin-secrets-nats",
+            "label": "vault-plugin-secrets-nats"
+          }
+        ]
+      }
+    ]
+  ]
+}
