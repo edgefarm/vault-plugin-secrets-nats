@@ -1,16 +1,20 @@
+// +kubebuilder:object:generate=true
 package common
 
+// +kubebuilder:object:generate=true
 type GenericFields struct {
 	Tags    []string `json:"tags,omitempty"`
 	Type    string   `json:"type,omitempty"`
 	Version int      `json:"version,omitempty"`
 }
 
+// +kubebuilder:object:generate=true
 type Info struct {
 	Description string `json:"description,omitempty"`
 	InfoURL     string `json:"infoURL,omitempty"`
 }
 
+// +kubebuilder:object:generate=true
 type ClaimsData struct {
 	Audience  string `json:"aud,omitempty"`
 	Expires   int64  `json:"exp,omitempty"`
@@ -22,6 +26,7 @@ type ClaimsData struct {
 	Subject   string `json:"sub,omitempty"`
 }
 
+// +kubebuilder:object:generate=true
 type Permissions struct {
 	Pub  Permission          `json:"pub,omitempty"`
 	Sub  Permission          `json:"sub,omitempty"`
@@ -39,6 +44,7 @@ type Permission struct {
 	Deny  []string `json:"deny,omitempty"`
 }
 
+// +kubebuilder:object:generate=true
 type NatsLimits struct {
 	Subs    int64 `json:"subs,omitempty"`    // Max number of subscriptions
 	Data    int64 `json:"data,omitempty"`    // Max number of bytes

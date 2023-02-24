@@ -24,22 +24,23 @@ import (
 	"github.com/nats-io/jwt/v2"
 )
 
+// +kubebuilder:object:generate=true
 type AccountClaims struct {
-	common.ClaimsData
-	Account `json:"account,omitempty"`
+	common.ClaimsData `json:",inline"`
+	Account           `json:"account,omitempty"`
 }
 
 // Account holds account specific claims data
 type Account struct {
-	Imports            []Import                     `json:"imports,omitempty"`
-	Exports            []Export                     `json:"exports,omitempty"`
-	Limits             OperatorLimits               `json:"limits,omitempty"`
-	SigningKeys        []string                     `json:"signingKeys,omitempty"`
-	Revocations        map[string]int64             `json:"revocations,omitempty"`
-	DefaultPermissions common.Permissions           `json:"defaultPermissions,omitempty"`
-	Mappings           map[string][]WeightedMapping `json:"mappings,omitempty"`
-	common.Info
-	common.GenericFields
+	Imports              []Import                     `json:"imports,omitempty"`
+	Exports              []Export                     `json:"exports,omitempty"`
+	Limits               OperatorLimits               `json:"limits,omitempty"`
+	SigningKeys          []string                     `json:"signingKeys,omitempty"`
+	Revocations          map[string]int64             `json:"revocations,omitempty"`
+	DefaultPermissions   common.Permissions           `json:"defaultPermissions,omitempty"`
+	Mappings             map[string][]WeightedMapping `json:"mappings,omitempty"`
+	common.Info          `json:",inline"`
+	common.GenericFields `json:",inline"`
 }
 
 type WeightedMapping struct {
@@ -54,9 +55,9 @@ type Identity struct {
 }
 
 type OperatorLimits struct {
-	common.NatsLimits
-	AccountLimits
-	JetStreamLimits
+	common.NatsLimits     `json:",inline"`
+	AccountLimits         `json:",inline"`
+	JetStreamLimits       `json:",inline"`
 	JetStreamTieredLimits `json:"tieredLimits,omitempty"`
 }
 
@@ -117,7 +118,7 @@ type Export struct {
 	Latency              *ServiceLatency  `json:"serviceLatency,omitempty"`
 	AccountTokenPosition uint             `json:"accountTokenPosition,omitempty"`
 	Advertise            bool             `json:"advertise,omitempty"`
-	common.Info
+	common.Info          `json:",inline"`
 }
 
 type ServiceLatency struct {

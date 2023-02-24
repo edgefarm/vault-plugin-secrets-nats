@@ -1,12 +1,14 @@
+// +k8s:deepcopy-gen=package
 package v1alpha1
 
 import (
 	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/claims/common"
 )
 
+// +kubebuilder:object:generate=true
 type OperatorClaims struct {
-	common.ClaimsData
-	Operator `json:"operator,omitempty"`
+	common.ClaimsData `json:",inline"`
+	Operator          `json:"operator,omitempty"`
 }
 
 type Operator struct {
@@ -28,5 +30,5 @@ type Operator struct {
 	AssertServerVersion string `json:"assertServerVersion,omitempty"`
 	// Signing of subordinate objects will require signing keys
 	StrictSigningKeyUsage bool `json:"strictSigningKeyUsage,omitempty"`
-	common.GenericFields
+	common.GenericFields  `json:",inline"`
 }

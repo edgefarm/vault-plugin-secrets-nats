@@ -5,28 +5,29 @@ import (
 )
 
 // UserClaims defines a user JWT
+// +kubebuilder:object:generate=true
 type UserClaims struct {
-	common.ClaimsData
-	User `json:"user,omitempty"`
+	common.ClaimsData `json:",inline"`
+	User              `json:"user,omitempty"`
 }
 
 type User struct {
-	UserPermissionLimits
-	IssuerAccount string `json:"issuerAccount,omitempty"`
-	common.GenericFields
+	UserPermissionLimits `json:",inline"`
+	IssuerAccount        string `json:"issuerAccount,omitempty"`
+	common.GenericFields `json:",inline"`
 }
 
 type UserPermissionLimits struct {
-	common.Permissions
-	Limits
-	BearerToken bool `json:"bearerToken,omitempty"`
+	common.Permissions `json:",inline"`
+	Limits             `json:",inline"`
+	BearerToken        bool `json:"bearerToken,omitempty"`
 	// allowed values STANDARD, WEBSOCKET, LEAFNODE, LEAFNODE_WS, MQTT, MQTT_WS
 	AllowedConnectionTypes []string `json:"allowedConnectionTypes,omitempty"`
 }
 
 type Limits struct {
-	UserLimits
-	common.NatsLimits
+	UserLimits        `json:",inline"`
+	common.NatsLimits `json:",inline"`
 }
 
 type UserLimits struct {
