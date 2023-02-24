@@ -39,11 +39,10 @@ jobs:
 
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ secrets.HELM_CHART_RELEASER_TOKEN }}
-          REGISTRY_USERNAME: ${{ github.actor }}
-          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_USER: siredmar
         run: |-
           #!/bin/bash
           set -e
-          npm install @semantic-release/exec eclass/semantic-release-docker -D
+          npm install @semantic-release/exec @eclass/semantic-release-docker -D
           npx -c semantic-release
