@@ -6,14 +6,14 @@
 [stars-url]: https://github.com/edgefarm/vault-plugin-secrets-nats/stargazers
 [issues-shield]: https://img.shields.io/github/issues/edgefarm/vault-plugin-secrets-nats.svg?style=for-the-badge
 [issues-url]: https://github.com/edgefarm/vault-plugin-secrets-nats/issues
-[license-shield]: https://img.shields.io/github/license/edgefarm/vault-plugin-secrets-nats?logo=mit&style=for-the-badge
-[license-url]: https://opensource.org/licenses/MIT
+[license-shield]: https://img.shields.io/github/license/edgefarm/vault-plugin-secrets-nats?style=for-the-badge
+[license-url]: https://opensource.org/license/mpl-2-0
 
 [![Contributors][contributors-shield]][contributors-url]
 [![Forks][forks-shield]][forks-url]
 [![Stargazers][stars-shield]][stars-url]
 [![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
+[![MPL-2.0 License][license-shield]][license-url]
 
 <!-- PROJECT LOGO -->
 <br />
@@ -158,7 +158,7 @@ Configure your vault server to have a valid `plugins_directory` configuration.
 
 ### Install from release
 
-Download the latest stable release from the [release]() page and put it into the `plugins_directory` of your vault server.
+Download the latest stable release from the [release](https://github.com/edgefarm/vault-plugin-secrets-nats/releases) page and put it into the `plugins_directory` of your vault server.
 
 ```console
 SHA256SUM=$(sha256sum vault-plugin-secrets-nats | cut -d' ' -f1)
