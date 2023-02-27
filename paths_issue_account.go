@@ -256,7 +256,6 @@ func listAccountIssues(ctx context.Context, storage logical.Storage, operator st
 }
 
 func deleteAccountIssue(ctx context.Context, storage logical.Storage, params IssueAccountParameters) error {
-
 	// get stored signing keys
 	issue, err := readAccountIssue(ctx, storage, params)
 	if err != nil {
