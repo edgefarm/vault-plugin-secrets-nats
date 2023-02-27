@@ -20,24 +20,25 @@ import (
 type IssueOperatorStorage struct {
 	Operator            string                    `json:"operator"`
 	CreateSystemAccount bool                      `json:"createSystemAccount"`
-	Claims              operatorv1.OperatorClaims `json:"claims"`
 	SyncAccountServer   bool                      `json:"syncAccountServer"`
+	Claims              operatorv1.OperatorClaims `json:"claims"`
 }
 
 // IssueOperatorParameters
+// +k8s:deepcopy-gen=true
 type IssueOperatorParameters struct {
 	Operator            string                    `json:"operator"`
-	CreateSystemAccount bool                      `json:"createSystemAccount"`
-	Claims              operatorv1.OperatorClaims `json:"claims"`
-	SyncAccountServer   bool                      `json:"syncAccountServer"`
+	CreateSystemAccount bool                      `json:"createSystemAccount,omitempty"`
+	SyncAccountServer   bool                      `json:"syncAccountServer,omitempty"`
+	Claims              operatorv1.OperatorClaims `json:"claims,omitempty"`
 }
 
 type IssueOperatorData struct {
 	Operator            string                    `json:"operator"`
 	CreateSystemAccount bool                      `json:"createSystemAccount"`
+	SyncAccountServer   bool                      `json:"syncAccountServer"`
 	Claims              operatorv1.OperatorClaims `json:"claims"`
 	Status              IssueOperatorStatus       `json:"status"`
-	SyncAccountServer   bool                      `json:"syncAccountServer"`
 }
 
 type IssueOperatorStatus struct {

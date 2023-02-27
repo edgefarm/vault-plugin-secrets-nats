@@ -27,11 +27,12 @@ type IssueAccountStorage struct {
 
 // IssueAccountParameters is the user facing interface for configuring an account issue.
 // Using pascal case on purpose.
+// +k8s:deepcopy-gen=true
 type IssueAccountParameters struct {
 	Operator      string                 `json:"operator"`
 	Account       string                 `json:"account"`
-	UseSigningKey string                 `json:"useSigningKey"`
-	Claims        v1alpha1.AccountClaims `json:"claims"`
+	UseSigningKey string                 `json:"useSigningKey,omitempty"`
+	Claims        v1alpha1.AccountClaims `json:"claims,omitempty"`
 }
 
 type IssueAccountData struct {
