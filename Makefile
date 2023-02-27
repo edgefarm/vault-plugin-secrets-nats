@@ -15,9 +15,12 @@ endif
 DOCKER_REGISTRY ?= siredmar
 VERSION ?= $(shell git describe --tags --always --dirty)
 
+generate:
+	go generate ./...
+
 all: fmt build start
 
-build:
+build: generate
 	CGO_ENABLED=0  GOOS=$(OS) GOARCH="$(GOARCH)" go build -o build/vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" -ldflags '-extldflags "-static"' cmd/vault-plugin-secrets-nats/main.go
 
 docker: build
@@ -60,4 +63,4 @@ e2e:
 	vault write -force nats-secrets/issue/operator/myop/account/ac1
 	vault write -force nats-secrets/issue/operator/myop/account/ac1/user/user1
 
-.PHONY: build clean fmt start enable test
+.PHONY: build clean fmt start enable test generate
