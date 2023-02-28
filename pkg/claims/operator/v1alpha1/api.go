@@ -6,9 +6,8 @@ import (
 )
 
 // +kubebuilder:object:generate=true
-// OperatorClaims is the top level JWT claims for an operator
+// Specifies claims of the JWT
 type OperatorClaims struct {
-	// Common data for all JWTs
 	common.ClaimsData `json:",inline"`
 	// Operator specific claims
 	// +kubebuilder:validation:Optional
