@@ -265,7 +265,7 @@ Once this is working create a account and a user and act as a third party that u
 
 ```console
 # Create the account and user and get the creds for the user
-$ devspace run-pipeline test-custom-nats-account
+$ devspace run-pipeline create-custom-nats-account
 $ kubectl port-forward -n nats svc/nats 4222:4222 &
 $ PID=$!
 
