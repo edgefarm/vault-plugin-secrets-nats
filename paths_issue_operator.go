@@ -20,24 +20,25 @@ import (
 type IssueOperatorStorage struct {
 	Operator            string                    `json:"operator"`
 	CreateSystemAccount bool                      `json:"createSystemAccount"`
-	Claims              operatorv1.OperatorClaims `json:"claims"`
 	SyncAccountServer   bool                      `json:"syncAccountServer"`
+	Claims              operatorv1.OperatorClaims `json:"claims"`
 }
 
 // IssueOperatorParameters
+// +k8s:deepcopy-gen=true
 type IssueOperatorParameters struct {
 	Operator            string                    `json:"operator"`
-	CreateSystemAccount bool                      `json:"createSystemAccount"`
-	Claims              operatorv1.OperatorClaims `json:"claims"`
-	SyncAccountServer   bool                      `json:"syncAccountServer"`
+	CreateSystemAccount bool                      `json:"createSystemAccount,omitempty"`
+	SyncAccountServer   bool                      `json:"syncAccountServer,omitempty"`
+	Claims              operatorv1.OperatorClaims `json:"claims,omitempty"`
 }
 
 type IssueOperatorData struct {
 	Operator            string                    `json:"operator"`
 	CreateSystemAccount bool                      `json:"createSystemAccount"`
+	SyncAccountServer   bool                      `json:"syncAccountServer"`
 	Claims              operatorv1.OperatorClaims `json:"claims"`
 	Status              IssueOperatorStatus       `json:"status"`
-	SyncAccountServer   bool                      `json:"syncAccountServer"`
 }
 
 type IssueOperatorStatus struct {
@@ -225,7 +226,7 @@ func refreshAccountResolvers(ctx context.Context, storage logical.Storage, issue
 				return err
 			}
 			for _, account := range accounts {
-				err = refreshAccountResolverPush(ctx, storage, IssueAccountStorage{
+				err = refreshAccountResolverPush(ctx, storage, &IssueAccountStorage{
 					Operator: issue.Operator,
 					Account:  account,
 				})
@@ -280,7 +281,6 @@ func listOperatorIssues(ctx context.Context, storage logical.Storage) ([]string,
 }
 
 func deleteOperatorIssue(ctx context.Context, storage logical.Storage, params IssueOperatorParameters) error {
-
 	// get stored signing keys
 	issue, err := readOperatorIssue(ctx, storage, params)
 	if err != nil {

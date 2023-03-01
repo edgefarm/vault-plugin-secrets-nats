@@ -2,6 +2,7 @@ package natsbackend
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -69,7 +70,7 @@ func (b *NatsBackend) pathAddOperatorNkey(ctx context.Context, req *logical.Requ
 
 	err = addOperatorNkey(ctx, req.Storage, params)
 	if err != nil {
-		return logical.ErrorResponse(AddingNkeyFailedError), nil
+		return logical.ErrorResponse(fmt.Sprintf("%s: %s", AddingNkeyFailedError, err.Error())), nil
 	}
 	return nil, nil
 }
