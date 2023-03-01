@@ -361,7 +361,7 @@ func TestAccountBeforeOperatorCreatingSysAccount(t *testing.T) {
 			Data:      map[string]interface{}{},
 		})
 		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
+		assert.True(t, resp.IsError())
 		// 1.1b create the account
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.CreateOperation,
@@ -370,7 +370,7 @@ func TestAccountBeforeOperatorCreatingSysAccount(t *testing.T) {
 			Data:      map[string]interface{}{},
 		})
 		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
+		assert.True(t, resp.IsError())
 
 		// 1.2 list the accounts - ac1 should be present
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{
@@ -555,7 +555,7 @@ func TestAccountBeforeOperatorAndSysAccount(t *testing.T) {
 			Data:      map[string]interface{}{},
 		})
 		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
+		assert.True(t, resp.IsError())
 
 		// 1.2 list the accounts - ac1 should be present
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{

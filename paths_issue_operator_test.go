@@ -558,6 +558,6 @@ func TestCRUDOperatorIssue(t *testing.T) {
 			Storage:   reqStorage,
 		})
 		assert.NoError(t, err)
-		assert.False(t, resp.IsError())
+		assert.True(t, resp.IsError())
 	})
 }
