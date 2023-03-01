@@ -70,18 +70,6 @@ func TestConvert(t *testing.T) {
 					DiskMaxStreamBytes:   14,
 					MaxBytesRequired:     true,
 				},
-				JetStreamTieredLimits: map[string]JetStreamLimits{
-					"stream1": {
-						MemoryStorage:        110,
-						DiskStorage:          111,
-						Streams:              112,
-						Consumer:             113,
-						MaxAckPending:        114,
-						MemoryMaxStreamBytes: 115,
-						DiskMaxStreamBytes:   116,
-						MaxBytesRequired:     true,
-					},
-				},
 			},
 			SigningKeys: []string{},
 			Revocations: map[string]int64{"r3": 1675804525, "r4": 1675804524},
@@ -172,15 +160,6 @@ func TestConvert(t *testing.T) {
 	assert.Equal(nats.Limits.JetStreamLimits.MemoryMaxStreamBytes, int64(13))
 	assert.Equal(nats.Limits.JetStreamLimits.DiskMaxStreamBytes, int64(14))
 	assert.Equal(nats.Limits.JetStreamLimits.MaxBytesRequired, true)
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].MemoryStorage, int64(110))
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].DiskStorage, int64(111))
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].Streams, int64(112))
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].Consumer, int64(113))
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].MaxAckPending, int64(114))
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].MemoryMaxStreamBytes, int64(115))
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].DiskMaxStreamBytes, int64(116))
-	assert.Equal(nats.Limits.JetStreamTieredLimits["stream1"].MaxBytesRequired, true)
-	assert.Len(nats.Limits.JetStreamTieredLimits, 1)
 
 	assert.Equal(nats.Revocations["r3"], int64(1675804525))
 	assert.Equal(nats.Revocations["r4"], int64(1675804524))

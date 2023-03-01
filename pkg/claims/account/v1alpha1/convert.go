@@ -96,26 +96,6 @@ func convertLimits(in *Account, out *jwt.Account) {
 			DiskMaxStreamBytes:   in.Limits.JetStreamLimits.DiskMaxStreamBytes,
 			MaxBytesRequired:     in.Limits.JetStreamLimits.MaxBytesRequired,
 		},
-		JetStreamTieredLimits: func() jwt.JetStreamTieredLimits {
-			if in.Limits.JetStreamTieredLimits == nil {
-				return jwt.JetStreamTieredLimits{}
-			}
-			out := jwt.JetStreamTieredLimits{}
-			for k, v := range in.Limits.JetStreamTieredLimits {
-				l := jwt.JetStreamLimits{
-					MemoryStorage:        v.MemoryStorage,
-					DiskStorage:          v.DiskStorage,
-					Streams:              v.Streams,
-					Consumer:             v.Consumer,
-					MaxAckPending:        v.MaxAckPending,
-					MemoryMaxStreamBytes: v.MemoryMaxStreamBytes,
-					DiskMaxStreamBytes:   v.DiskMaxStreamBytes,
-					MaxBytesRequired:     v.MaxBytesRequired,
-				}
-				out[k] = l
-			}
-			return out
-		}(),
 	}
 }
 

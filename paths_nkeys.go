@@ -20,8 +20,8 @@ type NKeyStorage struct {
 // NkeyParameters represents the parameters for a Nkey operation
 type NkeyParameters struct {
 	Operator string `json:"operator,omitempty"`
-	Signing  string `json:"signing,omitempty"`
 	Account  string `json:"account,omitempty"`
+	Signing  string `json:"signing,omitempty"`
 	User     string `json:"user,omitempty"`
 	Seed     string `json:"seed,omitempty"`
 }

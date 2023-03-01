@@ -27,11 +27,12 @@ type IssueAccountStorage struct {
 
 // IssueAccountParameters is the user facing interface for configuring an account issue.
 // Using pascal case on purpose.
+// +k8s:deepcopy-gen=true
 type IssueAccountParameters struct {
 	Operator      string                 `json:"operator"`
 	Account       string                 `json:"account"`
-	UseSigningKey string                 `json:"useSigningKey"`
-	Claims        v1alpha1.AccountClaims `json:"claims"`
+	UseSigningKey string                 `json:"useSigningKey,omitempty"`
+	Claims        v1alpha1.AccountClaims `json:"claims,omitempty"`
 }
 
 type IssueAccountData struct {
@@ -48,8 +49,8 @@ type IssueAccountStatus struct {
 }
 
 type AccountServerStatus struct {
-	Synced   bool  `Status:"synced"`
-	LastSync int64 `Status:"lastSync"`
+	Synced   bool  `json:"synced"`
+	LastSync int64 `json:"lastSync"`
 }
 
 func pathAccountIssue(b *NatsBackend) []*framework.Path {
@@ -129,7 +130,7 @@ func (b *NatsBackend) pathAddAccountIssue(ctx context.Context, req *logical.Requ
 	json.Unmarshal(jsonString, &params)
 	err = addAccountIssue(ctx, req.Storage, params)
 	if err != nil {
-		return logical.ErrorResponse(AddingIssueFailedError), nil
+		return logical.ErrorResponse(fmt.Sprintf("%s: %s", AddingIssueFailedError, err.Error())), nil
 	}
 	return nil, nil
 }
@@ -212,7 +213,6 @@ func addAccountIssue(ctx context.Context, storage logical.Storage, params IssueA
 }
 
 func refreshAccount(ctx context.Context, storage logical.Storage, issue *IssueAccountStorage) error {
-
 	// create nkey and signing nkeys
 	err := issueAccountNKeys(ctx, storage, *issue)
 	if err != nil {
@@ -225,8 +225,7 @@ func refreshAccount(ctx context.Context, storage logical.Storage, issue *IssueAc
 		return err
 	}
 
-	// update resolver
-	err = refreshAccountResolverPush(ctx, storage, *issue)
+	err = refreshAccountResolverPush(ctx, storage, issue)
 	if err != nil {
 		return err
 	}
@@ -255,7 +254,6 @@ func listAccountIssues(ctx context.Context, storage logical.Storage, operator st
 }
 
 func deleteAccountIssue(ctx context.Context, storage logical.Storage, params IssueAccountParameters) error {
-
 	// get stored signing keys
 	issue, err := readAccountIssue(ctx, storage, params)
 	if err != nil {
@@ -266,7 +264,8 @@ func deleteAccountIssue(ctx context.Context, storage logical.Storage, params Iss
 		return nil
 	}
 
-	err = refreshAccountResolverDelete(ctx, storage, *issue)
+	// update resolver
+	err = refreshAccountResolverDelete(ctx, storage, issue)
 	if err != nil {
 		return err
 	}
@@ -447,7 +446,6 @@ func issueAccountNKeys(ctx context.Context, storage logical.Storage, issue Issue
 }
 
 func issueAccountJWT(ctx context.Context, storage logical.Storage, issue IssueAccountStorage) error {
-
 	// use either operator nkey or signing nkey to
 	// sign jwt and add issuer claim
 	useSigningKey := issue.UseSigningKey
@@ -460,10 +458,10 @@ func issueAccountJWT(ctx context.Context, storage logical.Storage, issue IssueAc
 			return fmt.Errorf("could not read operator nkey: %s", err)
 		}
 		if data == nil {
-			log.Warn().
+			log.Error().
 				Str("operator", issue.Operator).Str("account", issue.Account).
-				Msgf("operator nkey does not exist: %s - Cannot create jwt.", issue.Operator)
-			return nil
+				Msgf("operator nkey does not exist: %s - Cannot create JWT.", issue.Operator)
+			return fmt.Errorf("operator nkey does not exist: %s - Cannot create JWT", issue.Operator)
 		}
 		seed = data.Seed
 	} else {
@@ -475,10 +473,10 @@ func issueAccountJWT(ctx context.Context, storage logical.Storage, issue IssueAc
 			return fmt.Errorf("could not read signing nkey: %s", err)
 		}
 		if data == nil {
-			log.Warn().
+			log.Error().
 				Str("operator", issue.Operator).Str("account", issue.Account).
-				Msgf("operator signing nkey does not exist: %s - Cannot create jwt.", useSigningKey)
-			return nil
+				Msgf("operator signing nkey does not exist: %s - Cannot create JWT.", useSigningKey)
+			return fmt.Errorf("operator signing nkey does not exist: %s - Cannot create JWT", useSigningKey)
 		}
 		seed = data.Seed
 	}
@@ -601,16 +599,15 @@ func updateUserIssues(ctx context.Context, storage logical.Storage, issue IssueA
 	return nil
 }
 
-func refreshAccountResolverPush(ctx context.Context, storage logical.Storage, issue IssueAccountStorage) error {
+func refreshAccountResolverPush(ctx context.Context, storage logical.Storage, issue *IssueAccountStorage) error {
 	return refreshAccountResolver(ctx, storage, issue, "push")
 }
 
-func refreshAccountResolverDelete(ctx context.Context, storage logical.Storage, issue IssueAccountStorage) error {
+func refreshAccountResolverDelete(ctx context.Context, storage logical.Storage, issue *IssueAccountStorage) error {
 	return refreshAccountResolver(ctx, storage, issue, "delete")
 }
 
-func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue IssueAccountStorage, action string) error {
-
+func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue *IssueAccountStorage, action string) error {
 	// read operator issue
 	op, err := readOperatorIssue(ctx, storage, IssueOperatorParameters{
 		Operator: issue.Operator,
@@ -636,7 +633,6 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 		Operator: issue.Operator,
 		Account:  issue.Account,
 	})
-	fmt.Println(accJWT)
 	if err != nil {
 		return err
 	} else if accJWT == nil {
@@ -670,7 +666,7 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 	if err != nil {
 		return err
 	} else if sysUserNkey == nil {
-		log.Warn().Str("operator", issue.Operator).
+		log.Error().Str("operator", issue.Operator).
 			Str("account", issue.Account).
 			Msg("cannot sync account server: system account user nkey does not exist")
 		return nil
@@ -758,10 +754,8 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 	}
 
 	// update issue status
-	path := getAccountIssuePath(issue.Operator, issue.Account)
 	issue.Status.AccountServer.Synced = true
 	issue.Status.AccountServer.LastSync = time.Now().Unix()
-	storeInStorage(ctx, storage, path, &issue)
 	return nil
 }
 
@@ -791,7 +785,6 @@ func createResponseIssueAccountData(issue *IssueAccountStorage) (*logical.Respon
 }
 
 func updateAccountStatus(ctx context.Context, storage logical.Storage, issue *IssueAccountStorage) error {
-
 	// account status
 	nkey, err := readAccountNkey(ctx, storage, NkeyParameters{
 		Operator: issue.Operator,

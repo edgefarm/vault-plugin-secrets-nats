@@ -149,6 +149,15 @@ Issues can be created with an imported nkey. If the nkey is not present during t
 | ----- | ------ | -------- | ------- | ----------------------------------------------------------- |
 | creds | string | false    | ""      | Creds file to import. If not set, then a new one is created |
 
+### 📤 System account specific configuration
+
+This section describes the configuration options that are specific to the system account.
+
+The default name of the system account is `sys`. If you want to use a different name, you can set the `systemAccount` configuration option in the `operator`. 
+Within the `sys` account the only user that is capable of pushing credentials to the account server is the `default-push` user. 
+
+See the `example/sysaccount` directory for an example configuration of both `sys` account and `default-push` user.
+
 ## 🎯 Installation and Setup
 
 In order to use this plugin you need to register it with Vault.
@@ -295,7 +304,7 @@ The user is then able to connect to the NATS server.
 
 Note: please make sure that you have `docker` installed as the example starts a local NATS server using docker.
 
-## Setup
+## 🛠️ Setup
 
 To use the plugin, you must first enable it with Vault. This example mounts the plugin at the path `nats-secrets`:
 
@@ -313,7 +322,7 @@ $ vault secrets enable -path=nats-secrets vault-plugin-secrets-nats
 Success! Enabled the vault-plugin-secrets-nats secrets engine at: nats-secrets/
 ```
 
-## Run the example
+## 🏁 Run the example
 
 ```console
 $ cd examples

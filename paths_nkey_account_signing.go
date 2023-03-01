@@ -91,7 +91,7 @@ func (b *NatsBackend) pathAddAccountSigningNkey(ctx context.Context, req *logica
 
 	err = addAccountSigningNkey(ctx, req.Storage, params)
 	if err != nil {
-		return logical.ErrorResponse(AddingNkeyFailedError), nil
+		return logical.ErrorResponse("%s: %s", AddingNkeyFailedError, err.Error()), nil
 	}
 	return nil, nil
 }
