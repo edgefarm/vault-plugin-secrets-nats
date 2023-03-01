@@ -153,10 +153,10 @@ Issues can be created with an imported nkey. If the nkey is not present during t
 
 This section describes the configuration options that are specific to the system account.
 
-The default name of the system account is `SYS`. If you want to use a different name, you can set the `systemAccount` configuration option in the `operator`. 
-Within the `SYS` account the only user that is capable of pushing credentials to the account server is the `default-push` user. 
+The default name of the system account is `sys`. If you want to use a different name, you can set the `systemAccount` configuration option in the `operator`. 
+Within the `sys` account the only user that is capable of pushing credentials to the account server is the `default-push` user. 
 
-See the `example/sysaccount` directory for an example configuration of both `SYS` account and `default-push` user.
+See the `example/sysaccount` directory for an example configuration of both `sys` account and `default-push` user.
 
 ## 🎯 Installation and Setup
 

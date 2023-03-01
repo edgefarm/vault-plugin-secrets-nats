@@ -226,7 +226,7 @@ func refreshAccountResolvers(ctx context.Context, storage logical.Storage, issue
 				return err
 			}
 			for _, account := range accounts {
-				err = refreshAccountResolverPush(ctx, storage, IssueAccountStorage{
+				err = refreshAccountResolverPush(ctx, storage, &IssueAccountStorage{
 					Operator: issue.Operator,
 					Account:  account,
 				})
@@ -281,7 +281,6 @@ func listOperatorIssues(ctx context.Context, storage logical.Storage) ([]string,
 }
 
 func deleteOperatorIssue(ctx context.Context, storage logical.Storage, params IssueOperatorParameters) error {
-
 	// get stored signing keys
 	issue, err := readOperatorIssue(ctx, storage, params)
 	if err != nil {

@@ -440,10 +440,10 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 			return fmt.Errorf("could not read signing nkey: %s", err)
 		}
 		if signingNkey == nil {
-			log.Warn().
+			log.Error().
 				Str("operator", issue.Operator).Str("account", issue.Account).Str("user", issue.User).
 				Msgf("account signing nkey does not exist: %s - Cannot create jwt.", useSigningKey)
-			return nil
+			return fmt.Errorf("account signing nkey does not exist: %s - Cannot create JWT", useSigningKey)
 		}
 		seed = signingNkey.Seed
 	}
