@@ -895,3 +895,59 @@ func Test_UnmarshalIssueUserParameters(t *testing.T) {
 	assert.Nil(err)
 	fmt.Printf("%+v\n", claims)
 }
+
+func Test_EverythingBeforeUser(t *testing.T) {
+	b, reqStorage := getTestBackend(t)
+	t.Run("Test delete everything before user", func(t *testing.T) {
+
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "issue/operator/op1",
+			Storage:   reqStorage,
+			Data:      map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "issue/operator/op1/account/ac1",
+			Storage:   reqStorage,
+			Data:      map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "issue/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      "issue/operator/op1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      "issue/operator/op1/account/ac1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      "issue/operator/op1/account/ac1/user/us1",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+	})
+}

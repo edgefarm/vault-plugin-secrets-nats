@@ -218,7 +218,6 @@ func addUserIssue(ctx context.Context, storage logical.Storage, params IssueUser
 }
 
 func refreshUser(ctx context.Context, storage logical.Storage, issue *IssueUserStorage) error {
-
 	// create nkey and signing nkeys
 	err := issueUserNKeys(ctx, storage, *issue)
 	if err != nil {
@@ -277,7 +276,6 @@ func listUserIssues(ctx context.Context, storage logical.Storage, params IssueUs
 }
 
 func deleteUserIssue(ctx context.Context, storage logical.Storage, params IssueUserParameters) error {
-
 	// get stored signing keys
 	issue, err := readUserIssue(ctx, storage, params)
 	if err != nil {
@@ -288,7 +286,7 @@ func deleteUserIssue(ctx context.Context, storage logical.Storage, params IssueU
 		return nil
 	}
 
-	// get stored signing keys
+	// account revocation list handling for deleted user
 	account, err := readAccountIssue(ctx, storage, IssueAccountParameters{
 		Operator: issue.Operator,
 		Account:  issue.Account,
@@ -296,15 +294,12 @@ func deleteUserIssue(ctx context.Context, storage logical.Storage, params IssueU
 	if err != nil {
 		return err
 	}
-	if account == nil {
-		// nothing to delete
-		return nil
-	}
-
-	// add deleted user to revocation list and update the account JWT
-	err = addUserToRevocationList(ctx, storage, account, issue)
-	if err != nil {
-		return err
+	if account != nil {
+		// add deleted user to revocation list and update the account JWT
+		err = addUserToRevocationList(ctx, storage, account, issue)
+		if err != nil {
+			return err
+		}
 	}
 
 	// delete user nkey
@@ -402,7 +397,6 @@ func issueUserNKeys(ctx context.Context, storage logical.Storage, issue IssueUse
 }
 
 func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserStorage) error {
-
 	// use either operator nkey or signing nkey
 	// to sign jwt and add issuer claim
 	useSigningKey := issue.UseSigningKey
@@ -513,7 +507,6 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 }
 
 func issueUserCreds(ctx context.Context, storage logical.Storage, issue IssueUserStorage) error {
-
 	// receive user nkey seed
 	// to add to creds file
 	userNkey, err := readUserNkey(ctx, storage, NkeyParameters{
@@ -578,7 +571,6 @@ func getUserIssuePath(operator string, account string, user string) string {
 }
 
 func createResponseIssueUserData(issue *IssueUserStorage) (*logical.Response, error) {
-
 	data := &IssueUserData{
 		Operator:      issue.Operator,
 		Account:       issue.Account,
@@ -601,7 +593,6 @@ func createResponseIssueUserData(issue *IssueUserStorage) (*logical.Response, er
 }
 
 func updateUserStatus(ctx context.Context, storage logical.Storage, issue *IssueUserStorage) {
-
 	// account status
 	nkey, err := readUserNkey(ctx, storage, NkeyParameters{
 		Operator: issue.Operator,
