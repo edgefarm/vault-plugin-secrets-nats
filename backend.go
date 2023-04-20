@@ -217,6 +217,10 @@ func (b *NatsBackend) periodicFunc(ctx context.Context, sys *logical.Request) er
 				if err != nil {
 					return err
 				}
+				_, err = storeAccountIssueUpdate(ctx, sys.Storage, accountIssue)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
