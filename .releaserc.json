@@ -30,6 +30,12 @@
         ]
       }
     ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "sha256sum build/vault/plugins/vault-plugin-secrets-nats | cut -d' ' -f1 > build/vault/plugins/vault-plugin-secrets-nats.sha256"
+      }
+    ],
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/github",
@@ -38,6 +44,10 @@
           {
             "path": "build/vault/plugins/vault-plugin-secrets-nats",
             "label": "vault-plugin-secrets-nats"
+          },
+          {
+            "path": "build/vault/plugins/vault-plugin-secrets-nats.sha256",
+            "label": "vault-plugin-secrets-nats.sha256"
           }
         ]
       }
