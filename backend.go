@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
@@ -53,8 +54,10 @@ func backend() *NatsBackend {
 		Secrets: []*framework.Secret{
 			// b.hashiCupsToken(),
 		},
-		BackendType: logical.TypeLogical,
-		Invalidate:  b.invalidate,
+		BackendType:       logical.TypeLogical,
+		Invalidate:        b.invalidate,
+		WALRollbackMinAge: 30 * time.Second,
+		PeriodicFunc:      b.periodicFunc,
 	}
 	return &b
 }
@@ -177,4 +180,46 @@ func readOperation[T any](ctx context.Context, s logical.Storage, path string) (
 	return &logical.Response{
 		Data: groupMap,
 	}, nil
+}
+
+func (b *NatsBackend) periodicFunc(ctx context.Context, sys *logical.Request) error {
+	b.Logger().Info("Periodic: starting periodic func for syncing accounts to nats")
+	operators, err := listOperatorIssues(ctx, sys.Storage)
+	if err != nil {
+		return err
+	}
+	for _, operator := range operators {
+		operatorIssue, err := readOperatorIssue(ctx, sys.Storage, IssueOperatorParameters{
+			Operator: operator,
+		})
+		if err != nil {
+			return err
+		}
+		if operatorIssue != nil {
+			if !operatorIssue.SyncAccountServer {
+				b.Logger().Info(fmt.Sprintf("Periodic: operator %s not configured for auto syncing to account server", operator))
+			}
+			b.Logger().Debug(fmt.Sprintf("Periodic: operator %s selected for auto sync to account server", operator))
+			accountNames, err := listAccountIssues(ctx, sys.Storage, operator)
+			if err != nil {
+				return err
+			}
+			for _, account := range accountNames {
+				b.Logger().Debug(fmt.Sprintf("Periodic: account %s in operator %s syncing to acount server", account, operator))
+				accountIssue, err := readAccountIssue(ctx, sys.Storage, IssueAccountParameters{
+					Operator: operator,
+					Account:  account,
+				})
+				if err != nil {
+					return err
+				}
+				err = refreshAccountResolver(ctx, sys.Storage, accountIssue, "push")
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+	}
+	return nil
 }
