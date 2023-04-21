@@ -33,7 +33,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "sh ./ci/semantic-release-patch-readme.sh ${nextRelease.version}"
+        "prepareCmd": "sh ./ci/semantic-release-patch-files.sh ${nextRelease.version}"
       }
     ],
     [
