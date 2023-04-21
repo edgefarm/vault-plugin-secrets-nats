@@ -169,6 +169,10 @@ Configure your vault server to have a valid `plugins_directory` configuration.
 
 Download the latest stable release from the [release](https://github.com/edgefarm/vault-plugin-secrets-nats/releases) page and put it into the `plugins_directory` of your vault server.
 
+To use a vault plugin you need the plugin's sha256 sum. You can download the file `vault-plugin-secrets-nats.sha256` file from the release, obtain it with `sha256sum vault-plugin-secrets-nats` or look within the OCI image at `/etc/vault/vault_plugins_checksums/vault-plugin-secrets-nats.sha256`.
+
+Example how to register the plugin:
+
 ```console
 SHA256SUM=$(sha256sum vault-plugin-secrets-nats | cut -d' ' -f1)
 vault plugin register -sha256 ${SHA256SUM} secret vault-plugin-secrets-nats
