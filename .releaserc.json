@@ -40,7 +40,8 @@
       "@semantic-release/git",
       {
         "assets": [
-          "README.md"
+          "README.md",
+          "dev/manifests/vault/vault.yaml"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
