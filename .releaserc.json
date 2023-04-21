@@ -33,7 +33,28 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "sha256sum build/vault/plugins/vault-plugin-secrets-nats | cut -d' ' -f1 > build/vault/plugins/vault-plugin-secrets-nats.sha256"
+        "prepareCmd": "sha256sum build/vault/plugins/vault-plugin-secrets-nats > build/vault/plugins/vault-plugin-secrets-nats.sha256"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "sed -i \"s#image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets:.*#image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets:${nextRelease.version}#g\" README.md"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "SHA256SUM=$(cat build/vault/plugins/vault-plugin-secrets-nats.sha256) && sed -i \"s#sha256: .*#sha256: ${SHA256SUM}#g\" README.md"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "README.md"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],
     "@semantic-release/release-notes-generator",
