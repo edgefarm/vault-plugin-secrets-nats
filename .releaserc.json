@@ -45,7 +45,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "SHA256SUM=$(cat build/vault/plugins/vault-plugin-secrets-nats.sha256) && sed -i \"s#sha256: .*#sha256: ${SHA256SUM}#g\" README.md"
+        "prepareCmd": "export SHA256SUM=$(cat build/vault/plugins/vault-plugin-secrets-nats.sha256) && sed -i \"s#sha256: .*#sha256: ${SHA256SUM}#g\" README.md"
       }
     ],
     [
