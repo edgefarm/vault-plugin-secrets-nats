@@ -684,6 +684,7 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 			Str("account", issue.Account).
 			Err(err).
 			Msg("cannot create conection to account server")
+		resolver.CloseConnection()
 		return nil
 	}
 	defer resolver.CloseConnection()
@@ -696,6 +697,7 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 				Str("account", issue.Account).
 				Err(err).
 				Msg("cannot sync account server (add)")
+			resolver.CloseConnection()
 			return nil
 		}
 	case action == "delete":
@@ -749,6 +751,7 @@ func refreshAccountResolver(ctx context.Context, storage logical.Storage, issue 
 				Str("account", issue.Account).
 				Err(err).
 				Msg("cannot sync account server (delete)")
+			resolver.CloseConnection()
 			return nil
 		}
 	}
