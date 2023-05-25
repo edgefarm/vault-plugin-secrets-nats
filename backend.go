@@ -197,7 +197,8 @@ func (b *NatsBackend) periodicFunc(ctx context.Context, sys *logical.Request) er
 		}
 		if operatorIssue != nil {
 			if !operatorIssue.SyncAccountServer {
-				b.Logger().Info(fmt.Sprintf("Periodic: operator %s not configured for auto syncing to account server", operator))
+				b.Logger().Info(fmt.Sprintf("Periodic: operator %s not configured for auto syncing to account server. Skipping.", operator))
+				continue
 			}
 			b.Logger().Debug(fmt.Sprintf("Periodic: operator %s selected for auto sync to account server", operator))
 			accountNames, err := listAccountIssues(ctx, sys.Storage, operator)
