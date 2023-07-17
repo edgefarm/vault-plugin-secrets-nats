@@ -12,8 +12,10 @@ import (
 )
 
 func (r *Resolver) CloseConnection() {
-	if r.nc == nil {
-		r.nc.Close()
+	if r != nil {
+		if r.nc == nil {
+			r.nc.Close()
+		}
 	}
 }
 
