@@ -191,6 +191,10 @@ func (b *NatsBackend) pathDeleteOperatorIssue(ctx context.Context, req *logical.
 
 }
 func addOperatorIssue(ctx context.Context, storage logical.Storage, params IssueOperatorParameters) error {
+	log.Info().
+		Str("operator", params.Operator).
+		Msgf("issue operator")
+
 	// store issue
 	issue, err := storeOperatorIssue(ctx, storage, params)
 	if err != nil {
@@ -394,7 +398,6 @@ func storeOperatorIssue(ctx context.Context, storage logical.Storage, params Iss
 }
 
 func issueOperatorNkeys(ctx context.Context, storage logical.Storage, issue IssueOperatorStorage) error {
-
 	var refreshAccounts bool
 
 	// issue operator nkey
@@ -444,7 +447,7 @@ func issueOperatorNkeys(ctx context.Context, storage logical.Storage, issue Issu
 	}
 
 	log.Info().
-		Str("operator", issue.Operator).Msgf("nkey created/updated")
+		Str("operator", issue.Operator).Msgf("nkey assigned")
 
 	return nil
 }

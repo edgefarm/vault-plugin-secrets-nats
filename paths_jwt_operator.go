@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/nats-io/jwt/v2"
+	"github.com/rs/zerolog/log"
 )
 
 func pathOperatorJWT(b *NatsBackend) []*framework.Path {
@@ -146,6 +147,10 @@ func deleteOperatorJWT(ctx context.Context, storage logical.Storage, params JWTP
 }
 
 func addOperatorJWT(ctx context.Context, storage logical.Storage, params JWTParameters) error {
+	log.Info().
+		Str("operator", params.Operator).
+		Msg("create/update operator jwt")
+
 	if params.JWT == "" {
 		return fmt.Errorf("operator JWT is required")
 	} else {
@@ -156,7 +161,23 @@ func addOperatorJWT(ctx context.Context, storage logical.Storage, params JWTPara
 	}
 
 	path := getOperatorJWTPath(params.Operator)
-	return addJWT(ctx, storage, path, params)
+	err := addJWT(ctx, storage, path, params)
+	if err != nil {
+		return err
+	}
+
+	iParams := IssueOperatorParameters{
+		Operator: params.Operator,
+	}
+	issue, err := readOperatorIssue(ctx, storage, iParams)
+	if err != nil {
+		return err
+	}
+	if issue == nil {
+		//ignore error, try to create issue
+		addOperatorIssue(ctx, storage, iParams)
+	}
+	return nil
 }
 
 func listOperatorJWTs(ctx context.Context, storage logical.Storage) ([]string, error) {

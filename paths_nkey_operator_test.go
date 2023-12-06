@@ -204,17 +204,29 @@ func TestCRUDOperatorNKeys(t *testing.T) {
 	})
 
 	t.Run("Test CRUD with a passed seed", func(t *testing.T) {
+
+		seed := "SOAJKQOZUY2EI4TRPO2HVXN572UFNBNDZKLUEMGJCHP3WNBUS73WHCIUPU"
+
 		path := "nkey/operator/op1"
 		resp, err := b.HandleRequest(context.Background(), &logical.Request{
 			Operation: logical.CreateOperation,
 			Path:      path,
 			Storage:   reqStorage,
 			Data: map[string]interface{}{
-				"seed": "SOAJKQOZUY2EI4TRPO2HVXN572UFNBNDZKLUEMGJCHP3WNBUS73WHCIUPU",
+				"seed": seed,
 			},
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
+
+		// read nkey and compare with seed
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, seed, resp.Data["seed"].(string))
 
 		// list the keys
 		resp, err = b.HandleRequest(context.Background(), &logical.Request{

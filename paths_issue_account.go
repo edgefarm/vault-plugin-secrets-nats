@@ -203,6 +203,11 @@ func (b *NatsBackend) pathDeleteAccountIssue(ctx context.Context, req *logical.R
 }
 
 func addAccountIssue(ctx context.Context, storage logical.Storage, params IssueAccountParameters) error {
+
+	log.Info().
+		Str("operator", params.Operator).Str("account", params.Account).
+		Msgf("issue account")
+
 	// store issue
 	issue, err := storeAccountIssue(ctx, storage, params)
 	if err != nil {
@@ -440,7 +445,7 @@ func issueAccountNKeys(ctx context.Context, storage logical.Storage, issue Issue
 	}
 
 	log.Info().
-		Str("operator", issue.Operator).Str("account", issue.Account).Msgf("nkey created/updated")
+		Str("operator", issue.Operator).Str("account", issue.Account).Msgf("nkey assigned")
 
 	return nil
 }
@@ -541,7 +546,8 @@ func issueAccountJWT(ctx context.Context, storage logical.Storage, issue IssueAc
 
 	issue.Claims.ClaimsData.Subject = accountPublicKey
 	issue.Claims.ClaimsData.Issuer = signingPublicKey
-	// TODO: dont know how to handle scopes of signing keys
+	issue.Claims.ClaimsData.IssuedAt = time.Now().Unix()
+  	// TODO: dont know how to handle scopes of signing keys
 	issue.Claims.Account.SigningKeys = signingPublicKeys
 	natsJwt, err := v1alpha1.Convert(&issue.Claims)
 	if err != nil {
@@ -565,7 +571,7 @@ func issueAccountJWT(ctx context.Context, storage logical.Storage, issue IssueAc
 	}
 	log.Info().
 		Str("operator", issue.Operator).Str("account", issue.Account).
-		Msgf("jwt created/updated")
+		Msgf("jwt nkey assigned")
 	return nil
 }
 

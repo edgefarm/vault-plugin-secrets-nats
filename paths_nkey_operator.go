@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/nats-io/nkeys"
+	"github.com/rs/zerolog/log"
 )
 
 func pathOperatorNkey(b *NatsBackend) []*framework.Path {
@@ -144,8 +145,29 @@ func deleteOperatorNkey(ctx context.Context, storage logical.Storage, params Nke
 }
 
 func addOperatorNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) error {
+	log.Info().
+		Str("operator", params.Operator).
+		Msg("create/update operator nkey")
+
 	path := getOperatorNkeyPath(params.Operator)
-	return addNkey(ctx, storage, path, nkeys.PrefixByteOperator, params, "operator")
+	err := addNkey(ctx, storage, path, nkeys.PrefixByteOperator, params, "operator")
+	if err != nil {
+		return err
+	}
+
+	iParams := IssueOperatorParameters{
+		Operator: params.Operator,
+	}
+
+	issue, err := readOperatorIssue(ctx, storage, iParams)
+	if err != nil {
+		return err
+	}
+	if issue == nil {
+		//ignore error, try to create issue
+		addOperatorIssue(ctx, storage, iParams)
+	}
+	return nil
 }
 
 func listOperatorNkeys(ctx context.Context, storage logical.Storage) ([]string, error) {

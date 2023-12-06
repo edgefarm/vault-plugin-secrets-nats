@@ -8,6 +8,7 @@ import (
 	"github.com/edgefarm/vault-plugin-secrets-nats/pkg/stm"
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/rs/zerolog/log"
 
 	"github.com/nats-io/nkeys"
 )
@@ -154,6 +155,7 @@ func addNkey(ctx context.Context, storage logical.Storage, path string, prefix n
 
 	// when no seed is given, generate a new one
 	if nkey.Seed == nil {
+		log.Info().Msg("nkey does not exist. creating new one")
 		nkey.Seed, err = createSeed(prefix)
 		if err != nil {
 			return err

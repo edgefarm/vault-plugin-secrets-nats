@@ -224,7 +224,6 @@ func (b *NatsBackend) periodicFunc(ctx context.Context, sys *logical.Request) er
 				}
 			}
 		}
-
 	}
 	return nil
 }
