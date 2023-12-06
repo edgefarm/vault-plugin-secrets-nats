@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/nats-io/jwt/v2"
+	"github.com/rs/zerolog/log"
 )
 
 func pathAccountJWT(b *NatsBackend) []*framework.Path {
@@ -162,6 +163,10 @@ func deleteAccountJWT(ctx context.Context, storage logical.Storage, params JWTPa
 }
 
 func addAccountJWT(ctx context.Context, storage logical.Storage, params JWTParameters) error {
+	log.Info().
+		Str("operator", params.Operator).Str("account", params.Account).
+		Msg("create/update account jwt")
+
 	if params.JWT == "" {
 		return fmt.Errorf("account JWT is required")
 	} else {
@@ -172,7 +177,25 @@ func addAccountJWT(ctx context.Context, storage logical.Storage, params JWTParam
 	}
 
 	path := getAccountJWTPath(params.Operator, params.Account)
-	return addJWT(ctx, storage, path, params)
+	err := addJWT(ctx, storage, path, params)
+	if err != nil {
+		return err
+	}
+
+	iParams := IssueAccountParameters{
+		Operator: params.Operator,
+		Account:  params.Account,
+	}
+
+	issue, err := readAccountIssue(ctx, storage, iParams)
+	if err != nil {
+		return err
+	}
+	if issue == nil {
+		//ignore error, try to create issue
+		addAccountIssue(ctx, storage, iParams)
+	}
+	return nil
 }
 
 func listAccountJWTs(ctx context.Context, storage logical.Storage, params JWTParameters) ([]string, error) {

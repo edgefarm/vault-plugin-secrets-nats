@@ -208,6 +208,10 @@ func (b *NatsBackend) pathDeleteUserIssue(ctx context.Context, req *logical.Requ
 }
 
 func addUserIssue(ctx context.Context, storage logical.Storage, params IssueUserParameters) error {
+	log.Info().
+		Str("operator", params.Operator).Str("account", params.Account).Str("user", params.User).
+		Msgf("issue user")
+
 	// store issue
 	issue, err := storeUserIssue(ctx, storage, params)
 	if err != nil {
@@ -261,7 +265,6 @@ func refreshUser(ctx context.Context, storage logical.Storage, issue *IssueUserS
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -392,7 +395,7 @@ func issueUserNKeys(ctx context.Context, storage logical.Storage, issue IssueUse
 	}
 	log.Info().
 		Str("operator", issue.Operator).Str("account", issue.Account).Str("user", issue.User).
-		Msgf("nkey created/updated")
+		Msg("nkey assigned")
 	return nil
 }
 

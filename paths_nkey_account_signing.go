@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/nats-io/nkeys"
+	"github.com/rs/zerolog/log"
 )
 
 func pathAccountSigningNkey(b *NatsBackend) []*framework.Path {
@@ -171,8 +172,30 @@ func deleteAccountSigningNkey(ctx context.Context, storage logical.Storage, para
 }
 
 func addAccountSigningNkey(ctx context.Context, storage logical.Storage, params NkeyParameters) error {
+	log.Info().
+		Str("operator", params.Operator).Str("account", params.Account).Str("signing", params.Signing).
+		Msg("create/update account signing nkey")
+
 	path := getAccountSigningNkeyPath(params.Operator, params.Account, params.Signing)
-	return addNkey(ctx, storage, path, nkeys.PrefixByteAccount, params, "account")
+	err := addNkey(ctx, storage, path, nkeys.PrefixByteAccount, params, "account")
+	if err != nil {
+		return err
+	}
+
+	iParams := IssueAccountParameters{
+		Operator: params.Operator,
+		Account:  params.Account,
+	}
+
+	issue, err := readAccountIssue(ctx, storage, iParams)
+	if err != nil {
+		return err
+	}
+	if issue == nil {
+		//ignore error, try to create issue
+		addAccountIssue(ctx, storage, iParams)
+	}
+	return nil
 }
 
 func listAccountSigningNkeys(ctx context.Context, storage logical.Storage, params NkeyParameters) ([]string, error) {
