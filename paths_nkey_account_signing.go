@@ -90,6 +90,12 @@ func (b *NatsBackend) pathAddAccountSigningNkey(ctx context.Context, req *logica
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
+	//check if operator exist
+	operatorStore, _ := readOperatorNkey(ctx, req.Storage, NkeyParameters{Operator: params.Operator})
+	if operatorStore == nil {
+		return logical.ErrorResponse(OperatorMissingError), logical.ErrInvalidRequest
+	}
+
 	err = addAccountSigningNkey(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse("%s: %s", AddingNkeyFailedError, err.Error()), nil

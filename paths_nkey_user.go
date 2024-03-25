@@ -91,6 +91,18 @@ func (b *NatsBackend) pathAddUserNkey(ctx context.Context, req *logical.Request,
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
+	//check if operator exist
+	operatorStore, _ := readOperatorNkey(ctx, req.Storage, NkeyParameters{Operator: params.Operator})
+	if operatorStore == nil {
+		return logical.ErrorResponse(OperatorMissingError), logical.ErrInvalidRequest
+	}
+
+	//check if account exist
+	accountStore, _ := readAccountNkey(ctx, req.Storage, NkeyParameters{Operator: params.Operator, Account: params.Account})
+	if accountStore == nil {
+		return logical.ErrorResponse(AccountMissingError), logical.ErrInvalidRequest
+	}
+
 	err = addUserNkey(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(fmt.Sprintf("%s: %s", AddingNkeyFailedError, err.Error())), nil

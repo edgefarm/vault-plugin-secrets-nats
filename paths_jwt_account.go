@@ -81,6 +81,12 @@ func (b *NatsBackend) pathAddAccountJWT(ctx context.Context, req *logical.Reques
 		return logical.ErrorResponse(DecodeFailedError), logical.ErrInvalidRequest
 	}
 
+	//check if operator exist
+	operatorStore, _ := readOperatorJWT(ctx, req.Storage, JWTParameters{Operator: params.Operator})
+	if operatorStore == nil {
+		return logical.ErrorResponse(OperatorMissingError), logical.ErrInvalidRequest
+	}
+
 	err = addAccountJWT(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingJWTFailedError), nil
