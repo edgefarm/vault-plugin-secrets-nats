@@ -5,7 +5,7 @@ metadata:
 spec:
   size: 1
   # Use the custom vault image containing the NATS secrets plugin
-  image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets:1.4.0
+  image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets:1.5.0
 
   # Common annotations for all created resources
   annotations:
@@ -129,7 +129,7 @@ spec:
     plugins:
       - plugin_name: vault-plugin-secrets-nats
         command: vault-plugin-secrets-nats --tls-skip-verify --ca-cert=/vault/tls/ca.crt
-        sha256: 1e6ea81a74042eac16f042aac3e747353adc8328b1e1d759c3451211b1feec92
+        sha256: 5639d8581b6d6680a19771ba854befb9b897a99c4325aea5c5d77ca3c7fc488e
         type: secret
 
     policies:
