@@ -211,17 +211,120 @@ func (b *NatsBackend) periodicFunc(ctx context.Context, sys *logical.Request) er
 					Operator: operator,
 					Account:  account,
 				})
-				if err != nil {
+
+				if err = b.periodicRefreshAccountIssues(ctx, sys.Storage, operator); err != nil {
 					return err
 				}
-				err = refreshAccountResolver(ctx, sys.Storage, accountIssue, "push")
-				if err != nil {
+				if err = b.periodicRefreshUserIssues(ctx, sys.Storage, operator, account); err != nil {
+					return err
+				}
+
+				if err = refreshAccountResolver(ctx, sys.Storage, accountIssue, AccountResolverActionPush); err != nil {
 					return err
 				}
 				_, err = storeAccountIssueUpdate(ctx, sys.Storage, accountIssue)
 				if err != nil {
 					return err
 				}
+			}
+		}
+	}
+	return nil
+}
+
+func (b *NatsBackend) periodicRefreshUserIssues(ctx context.Context, storage logical.Storage, operator string, account string) error {
+	issuesList, err := listUserIssues(ctx, storage, IssueUserParameters{
+		Operator: operator,
+		Account:  account,
+	})
+	if err != nil {
+		return err
+	}
+	for _, issueName := range issuesList {
+		issue, err := readUserIssue(ctx, storage, IssueUserParameters{
+			Operator: operator,
+			Account:  account,
+			User:     issueName,
+		})
+		if err != nil {
+			return err
+		}
+
+		jwtMissing := false
+		nkeyMissing := false
+		jwt, err := readUserJWT(ctx, storage, JWTParameters{
+			Operator: operator,
+			Account:  account,
+			User:     issueName,
+		})
+		if err != nil {
+			return err
+		}
+		if !issue.Status.User.JWT || jwt == nil {
+			jwtMissing = true
+		}
+
+		nkey, err := readUserNkey(ctx, storage, NkeyParameters{
+			Operator: operator,
+			Account:  account,
+			User:     issueName,
+		})
+		if err != nil {
+			return err
+		}
+		if !issue.Status.User.Nkey || nkey == nil {
+			nkeyMissing = true
+		}
+
+		if jwtMissing || nkeyMissing {
+			if err := refreshUser(ctx, storage, issue); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (b *NatsBackend) periodicRefreshAccountIssues(ctx context.Context, storage logical.Storage, operator string) error {
+	issuesList, err := listAccountIssues(ctx, storage, operator)
+	if err != nil {
+		return err
+	}
+	for _, issueName := range issuesList {
+		issue, err := readAccountIssue(ctx, storage, IssueAccountParameters{
+			Operator: operator,
+			Account:  issueName,
+		})
+		if err != nil {
+			return err
+		}
+		jwtMissing := false
+		nkeyMissing := false
+		jwt, err := readAccountJWT(ctx, storage, JWTParameters{
+			Operator: operator,
+			Account:  issueName,
+		})
+		if err != nil {
+			return err
+		}
+		if !issue.Status.Account.JWT || jwt == nil {
+			jwtMissing = true
+		}
+
+		nkey, err := readAccountNkey(ctx, storage, NkeyParameters{
+			Operator: operator,
+			Account:  issueName,
+		})
+		if err != nil {
+			return err
+		}
+		if !issue.Status.Account.Nkey || nkey == nil {
+			nkeyMissing = true
+		}
+
+		if jwtMissing || nkeyMissing {
+			if err := refreshAccount(ctx, storage, issue); err != nil {
+				return err
 			}
 		}
 	}

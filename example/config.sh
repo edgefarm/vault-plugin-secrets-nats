@@ -4,9 +4,9 @@ BGREEN='\033[1;32m'
 NC='\033[0m' # No Color
 
 echo -e "${BGREEN}> Creating NATS resources (operator and sysaccount)${NC}"    
-vault write nats-secrets/issue/operator/myop @operator/operator.json
-vault write nats-secrets/issue/operator/myop/account/sys @sysaccount/sysaccount.json
 vault write nats-secrets/issue/operator/myop/account/sys/user/default-push @sysaccount/default-push.json
+vault write nats-secrets/issue/operator/myop/account/sys @sysaccount/sysaccount.json
+vault write nats-secrets/issue/operator/myop @operator/operator.json
 
 echo -e "${BGREEN}> Generate NATS server config with preloaded operator and sys account settings${NC}"    
 OPERATOR_JWT=$(vault read -format=json nats-secrets/jwt/operator/myop  | jq -r .data.jwt)
