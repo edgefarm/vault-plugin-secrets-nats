@@ -134,6 +134,18 @@ func (b *NatsBackend) pathAddUserIssue(ctx context.Context, req *logical.Request
 	params := IssueUserParameters{}
 	json.Unmarshal(jsonString, &params)
 
+	//check if operator exist
+	operatorStore, _ := readOperatorIssue(ctx, req.Storage, IssueOperatorParameters{Operator: params.Operator})
+	if operatorStore == nil {
+		return logical.ErrorResponse(OperatorMissingError), logical.ErrInvalidRequest
+	}
+
+	//check if account exist
+	accountStore, _ := readAccountIssue(ctx, req.Storage, IssueAccountParameters{Operator: params.Operator, Account: params.Account})
+	if accountStore == nil {
+		return logical.ErrorResponse(AccountMissingError), logical.ErrInvalidRequest
+	}
+
 	err = addUserIssue(ctx, req.Storage, params)
 	if err != nil {
 		return logical.ErrorResponse(AddingIssueFailedError), nil

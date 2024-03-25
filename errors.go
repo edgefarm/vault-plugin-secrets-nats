@@ -36,7 +36,7 @@ const (
 
 	// // Operator Errors
 	// OperatorNotConfiguredError      = "operator not configured"
-	// OperatorMissingError            = "missing operator"
+	OperatorMissingError = "missing operator"
 	// MissingOperatorSigningKeysError = "missing operator signing keys"
 	// DeletingOperatorError           = "error deleting operator"
 	// NoAdditionalSigningKeysError    = "no additional signing keys defined in operator"
@@ -44,7 +44,7 @@ const (
 
 	// // Account errors
 	// StrictSigningKeyUsageButNoKeyDefinedError = "operator is enabled with strict signing key usage. Provide at least one account signing key"
-	// AccountMissingError                       = "missing account"
+	AccountMissingError = "missing account"
 	// AccountDeleteError                        = "error deleting account"
 	// MissingAccountSigningKeysError            = "missing account signing keys"
 
