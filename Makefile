@@ -24,10 +24,10 @@ build: generate
 	CGO_ENABLED=0  GOOS=$(OS) GOARCH="$(GOARCH)" go build -o build/vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" -ldflags '-extldflags "-static"' cmd/vault-plugin-secrets-nats/main.go
 
 docker: build
-	docker build -t $(DOCKER_REGISTRY)/vault-plugin-secrets-nats:$(VERSION) -f build/vault/Dockerfile .
+	docker build -t $(DOCKER_REGISTRY)/vault-with-nats-secrets:$(VERSION) -f build/vault/Dockerfile .
 
 push: docker
-	docker push $(DOCKER_REGISTRY)/vault-plugin-secrets-nats:$(VERSION)
+	docker push $(DOCKER_REGISTRY)/vault-with-nats-secrets:$(VERSION)
 
 start:
 	vault server -dev -dev-root-token-id=root -dev-plugin-dir=./build/vault/plugins -log-level=trace -dev-listen-address=127.0.0.1:8200
