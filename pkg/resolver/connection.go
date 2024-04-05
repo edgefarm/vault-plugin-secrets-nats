@@ -13,7 +13,7 @@ import (
 
 func (r *Resolver) CloseConnection() {
 	if r != nil {
-		if r.nc == nil {
+		if r.nc != nil {
 			r.nc.Close()
 		}
 	}
