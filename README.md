@@ -369,7 +369,7 @@ Code contributions are very much **welcome**.
 2. Create your Branch (`git checkout -b AmazingFeature`)
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature")
 4. Push to the Branch (`git push origin AmazingFeature`)
-5. Open a Pull Request targetting the `beta` branch.
+5. Open a Pull Request targetting the `main` branch.
 
 # 🫶 Acknowledgements
 
