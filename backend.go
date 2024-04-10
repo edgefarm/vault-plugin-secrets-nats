@@ -196,35 +196,38 @@ func (b *NatsBackend) periodicFunc(ctx context.Context, sys *logical.Request) er
 			return err
 		}
 		if operatorIssue != nil {
-			if !operatorIssue.SyncAccountServer {
-				b.Logger().Info(fmt.Sprintf("Periodic: operator %s not configured for auto syncing to account server. Skipping.", operator))
-				continue
-			}
 			b.Logger().Debug(fmt.Sprintf("Periodic: operator %s selected for auto sync to account server", operator))
 			accountNames, err := listAccountIssues(ctx, sys.Storage, operator)
 			if err != nil {
 				return err
 			}
 			for _, account := range accountNames {
-				b.Logger().Debug(fmt.Sprintf("Periodic: account %s in operator %s syncing to acount server", account, operator))
-				accountIssue, err := readAccountIssue(ctx, sys.Storage, IssueAccountParameters{
-					Operator: operator,
-					Account:  account,
-				})
-
 				if err = b.periodicRefreshAccountIssues(ctx, sys.Storage, operator); err != nil {
-					return err
+					b.Logger().Info(err.Error())
 				}
 				if err = b.periodicRefreshUserIssues(ctx, sys.Storage, operator, account); err != nil {
-					return err
+					b.Logger().Info(err.Error())
 				}
 
-				if err = refreshAccountResolver(ctx, sys.Storage, accountIssue, AccountResolverActionPush); err != nil {
-					return err
-				}
-				_, err = storeAccountIssueUpdate(ctx, sys.Storage, accountIssue)
-				if err != nil {
-					return err
+				if operatorIssue.SyncAccountServer {
+					b.Logger().Debug(fmt.Sprintf("Periodic: account %s in operator %s syncing to acount server", account, operator))
+					accountIssue, err := readAccountIssue(ctx, sys.Storage, IssueAccountParameters{
+						Operator: operator,
+						Account:  account,
+					})
+					if err != nil {
+						b.Logger().Info(err.Error())
+					}
+					if err = refreshAccountResolver(ctx, sys.Storage, accountIssue, AccountResolverActionPush); err != nil {
+						return err
+					}
+					_, err = storeAccountIssueUpdate(ctx, sys.Storage, accountIssue)
+					if err != nil {
+						return err
+					}
+				} else {
+					b.Logger().Info(fmt.Sprintf("Periodic: operator %s not configured for auto syncing to account server. Skipping.", operator))
+					continue
 				}
 			}
 		}
