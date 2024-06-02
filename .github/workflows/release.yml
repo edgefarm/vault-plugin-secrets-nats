@@ -87,6 +87,4 @@ jobs:
           #!/bin/bash
           set -e
           npm install @semantic-release/exec @eclass/semantic-release-docker @semantic-release/git -D
-          # the ... || true is to prevent the script from failing caused by a bug in semantic-release regarding 
-          # rate limit changes on github. See https://github.com/semantic-release/github/pull/487
-          npx -c semantic-release || true
+          npx -c semantic-release
