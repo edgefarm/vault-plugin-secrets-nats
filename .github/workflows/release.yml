@@ -34,7 +34,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          make GOARCH=${{ matrix.architecture }} test
+          make test
 
       - name: Build the artifacts
         run: |
