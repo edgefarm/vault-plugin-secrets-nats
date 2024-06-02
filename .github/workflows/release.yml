@@ -53,6 +53,7 @@ jobs:
       - name: uplpoad built artifacts
         uses: actions/upload-artifact@v4
         with:
+          name: vault-plugin-secrets-nats-${{ matrix.os }}-${{ matrix.architecture }}
           path: build/vault/plugins/vault-plugin-secrets-nats-*
           retention-days: 1
           overwrite: true
