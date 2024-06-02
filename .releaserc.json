@@ -23,7 +23,7 @@
         "registries": [
           {
             "url": "ghcr.io",
-            "imageName": "ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets",
+            "imageName": "ghcr.io/zerosubnet/vault-plugin-secrets-nats/vault-with-nats-secrets",
             "user": "GITHUB_USER",
             "password": "GITHUB_TOKEN"
           }
