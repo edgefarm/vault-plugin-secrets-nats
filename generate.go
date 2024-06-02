@@ -1,5 +1,4 @@
-//go:build generate
-// +build generate
+//go:build (generate && linux && amd64) || (generate && darwin && amd64)
 
 package natsbackend
 
