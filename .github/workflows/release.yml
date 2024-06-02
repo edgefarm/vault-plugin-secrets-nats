@@ -40,11 +40,11 @@ jobs:
 
       - name: Run Tests
         run: |
-          make test
+          make OS=${{ matrix.os }} GOARCH=${{ matrix.architecture }} test
 
       - name: Build the artifacts
         run: |
-          make GOARCH=${{ matrix.architecture }} build
+          make OS=${{ matrix.os }} GOARCH=${{ matrix.architecture }} build
   release:
     name: Release
     runs-on: ubuntu-latest
