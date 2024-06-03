@@ -21,7 +21,7 @@ generate:
 all: fmt build start
 
 build: generate
-	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(GOARCH) go build -o build/vault/plugins/vault-plugin-secrets-nats-$(OS)-$(GOARCH) -gcflags "all=-N -l" -ldflags '-extldflags "-static"' cmd/vault-plugin-secrets-nats/main.go
+	CGO_ENABLED=0  GOOS=$(OS) GOARCH="$(GOARCH)" go build -o build/vault/plugins/vault-plugin-secrets-nats -gcflags "all=-N -l" -ldflags '-extldflags "-static"' cmd/vault-plugin-secrets-nats/main.go
 
 docker: build
 	docker build -t $(DOCKER_REGISTRY)/vault-with-nats-secrets:$(VERSION) -f build/vault/Dockerfile .
@@ -36,7 +36,7 @@ enable:
 	VAULT_ADDR='http://127.0.0.1:8200' vault secrets enable -path=nats-secrets vault-plugin-secrets-nats
 
 clean:
-	rm -f ./build/vault/plugins/vault-plugin-secrets-nats-*
+	rm -f ./build/vault/plugins/vault-plugin-secrets-nats
 
 fmt:
 	go fmt $$(go list ./...)
