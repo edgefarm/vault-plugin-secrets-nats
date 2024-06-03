@@ -52,28 +52,7 @@
       {
         "assets": [
           {
-            "path": "build/vault/plugins/vault-plugin-secrets-nats",
-            "label": "vault-plugin-secrets-nats"
-          },
-          {
-            "path": "build/vault/plugins/vault-plugin-secrets-nats.sha256",
-            "label": "vault-plugin-secrets-nats.sha256"
-          },
-          {
-            "path": "build/vault/plugins/vault-plugin-secrets-nats-arm64",
-            "label": "vault-plugin-secrets-nats-arm64"
-          },
-          {
-            "path": "build/vault/plugins/vault-plugin-secrets-nats-arm64.sha256",
-            "label": "vault-plugin-secrets-nats-arm64.sha256"
-          },
-          {
-            "path": "build/vault/plugins/vault-plugin-secrets-nats-amd64",
-            "label": "vault-plugin-secrets-nats-amd64"
-          },
-          {
-            "path": "build/vault/plugins/vault-plugin-secrets-nats-amd64.sha256",
-            "label": "vault-plugin-secrets-nats-amd64.sha256"
+            "path": "build/vault/plugins/vault-plugin-secrets-*"
           }
         ]
       }
