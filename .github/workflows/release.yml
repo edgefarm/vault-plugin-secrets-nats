@@ -48,7 +48,7 @@ jobs:
 
       - name: Build the artifacts
         run: |
-          make OS=${{ matrix.os }} GOARCH=${{ matrix.architecture }} build
+          make OS=${{ matrix.os }} GO_ARCH=${{ matrix.architecture }} build
 
       - name: uplpoad built artifacts
         uses: actions/upload-artifact@v4

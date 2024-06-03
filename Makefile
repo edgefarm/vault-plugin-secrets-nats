@@ -1,4 +1,4 @@
-GOARCH = amd64
+GO_ARCH = amd64
 
 UNAME = $(shell uname -s)
 
@@ -21,7 +21,7 @@ generate:
 all: fmt build start
 
 build: generate
-	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(GOARCH) go build -o build/vault/plugins/vault-plugin-secrets-nats-$(OS)-$(GOARCH) -gcflags "all=-N -l" -ldflags '-extldflags "-static"' cmd/vault-plugin-secrets-nats/main.go
+	CGO_ENABLED=0 GOOS=$(OS) GOARCH=$(GO_ARCH) go build -o build/vault/plugins/vault-plugin-secrets-nats-$(OS)-$(GO_ARCH) -gcflags "all=-N -l" -ldflags '-extldflags "-static"' cmd/vault-plugin-secrets-nats/main.go
 
 docker: build
 	docker build -t $(DOCKER_REGISTRY)/vault-with-nats-secrets:$(VERSION) -f build/vault/Dockerfile .
