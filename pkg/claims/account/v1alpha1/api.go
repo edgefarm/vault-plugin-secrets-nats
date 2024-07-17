@@ -56,9 +56,19 @@ type Account struct {
 	// Stores subjects that get mapped to other subjects using a weighted mapping.
 	// For more information see https://docs.nats.io/nats-concepts/subject_mapping
 	// +kubebuilder:validation:Optional
-	Mappings             map[string][]WeightedMapping `json:"mappings,omitempty"`
+	Mappings map[string][]WeightedMapping `json:"mappings,omitempty"`
+	// Enable external authorization for account users.
+	// +kubebuilder:validation:Optional
+	Authorization        ExternalAuthorization `json:"authorization,omitempty"`
 	common.Info          `json:",inline"`
 	common.GenericFields `json:",inline"`
+}
+
+// Enable external authorization for account users.
+type ExternalAuthorization struct {
+	AuthUsers       []string `json:"auth_users,omitempty"`
+	AllowedAccounts []string `json:"allowed_accounts,omitempty"`
+	XKey            string   `json:"xkey,omitempty"`
 }
 
 // WeightedMapping is a mapping from one subject to another with a weight and a destination cluster
