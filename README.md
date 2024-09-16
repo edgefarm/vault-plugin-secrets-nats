@@ -197,7 +197,7 @@ metadata:
 spec:
   size: 1
   # Use the custom vault image containing the NATS secrets plugin
-  image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets:1.6.0
+  image: ghcr.io/edgefarm/vault-plugin-secrets-nats/vault-with-nats-secrets:1.7.0
   config:
     disable_mlock: true
     plugin_directory: "/etc/vault/vault_plugins"
@@ -209,7 +209,7 @@ spec:
     plugins:
     - plugin_name: vault-plugin-secrets-nats
       command: vault-plugin-secrets-nats --tls-skip-verify --ca-cert=/vault/tls/ca.crt
-      sha256: e03f5771e7806296e9f77ccffde203ce2ea5ce0728df6d88054bb7939c6dc392
+      sha256: 5cfc754348bbd2947ea9b1fc4eceee6b3b8a7bcf7a476c2dfbf390bbfd81c968
       type: secret
     secrets:
     - path: nats-secrets
