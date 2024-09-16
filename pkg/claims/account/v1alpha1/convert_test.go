@@ -113,6 +113,11 @@ func TestConvert(t *testing.T) {
 					},
 				},
 			},
+			Authorization: ExternalAuthorization{
+				AuthUsers:       []string{"myauthuser1", "myauthuser2"},
+				AllowedAccounts: []string{"myacct10", "myacct20", "*"},
+				XKey:            "myxkey",
+			},
 			Info: common.Info{},
 		},
 	}
@@ -189,4 +194,10 @@ func TestConvert(t *testing.T) {
 	assert.Equal(nats.Mappings["mapping2"][1].Weight, uint8(20))
 	assert.Len(nats.Mappings["mapping2"], 2)
 
+	assert.Equal(nats.Authorization.AuthUsers[0], "myauthuser1")
+	assert.Equal(nats.Authorization.AuthUsers[1], "myauthuser2")
+	assert.Equal(nats.Authorization.AllowedAccounts[0], "myacct10")
+	assert.Equal(nats.Authorization.AllowedAccounts[1], "myacct20")
+	assert.Equal(nats.Authorization.AllowedAccounts[2], "*")
+	assert.Equal(nats.Authorization.XKey, "myxkey")
 }

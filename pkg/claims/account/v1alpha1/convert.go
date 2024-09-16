@@ -168,6 +168,21 @@ func convertMappings(in *Account, out *jwt.Account) {
 	}
 }
 
+func convertAuthorization(in *Account, out *jwt.Account) {
+	out.Authorization = jwt.ExternalAuthorization{}
+	if in.Authorization.AllowedAccounts != nil {
+		out.Authorization.AllowedAccounts = jwt.StringList(in.Authorization.AllowedAccounts)
+	}
+
+	if in.Authorization.AuthUsers != nil {
+		out.Authorization.AuthUsers = jwt.StringList(in.Authorization.AuthUsers)
+	}
+
+	if in.Authorization.XKey != "" {
+		out.Authorization.XKey = in.Authorization.XKey
+	}
+}
+
 func Convert(claims *AccountClaims) (*jwt.AccountClaims, error) {
 	nats := &jwt.AccountClaims{
 		Account: jwt.Account{
@@ -190,6 +205,7 @@ func Convert(claims *AccountClaims) (*jwt.AccountClaims, error) {
 	convertRevocations(&claims.Account, &nats.Account)
 	convertDefaultPermissions(&claims.Account, &nats.Account)
 	convertMappings(&claims.Account, &nats.Account)
+	convertAuthorization(&claims.Account, &nats.Account)
 	nats.ClaimsData = common.ConvertClaimsData(&claims.ClaimsData)
 	nats.GenericFields = common.ConvertGenericFields(&claims.GenericFields)
 	return nats, nil
