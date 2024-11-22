@@ -279,6 +279,7 @@ func (b *NatsBackend) periodicRefreshUserIssues(ctx context.Context, storage log
 			nkeyMissing = true
 		}
 
+		// todo: add check if jwt is expired
 		if jwtMissing || nkeyMissing {
 			if err := refreshUser(ctx, storage, issue); err != nil {
 				return err

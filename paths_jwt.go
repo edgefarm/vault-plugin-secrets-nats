@@ -23,6 +23,10 @@ type JWTParameters struct {
 	Operator string `json:"operator,omitempty"`
 	Account  string `json:"account,omitempty"`
 	User     string `json:"user,omitempty"`
+	// Expiry is the time when the issue will expire
+	Exipiry int64 `json:"expiry"`
+	// Refresh is a flag to force a refresh of the issue
+	Refresh bool `json:"refresh"`
 	JWTStorage
 }
 

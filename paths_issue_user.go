@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/vault/sdk/framework"
 	"github.com/hashicorp/vault/sdk/logical"
@@ -21,7 +22,13 @@ type IssueUserStorage struct {
 	User          string              `json:"user"`
 	UseSigningKey string              `json:"useSigningKey"`
 	Claims        v1alpha1.UserClaims `json:"claims"`
-	Status        IssueUserStatus     `json:"status"`
+
+	ExpirationDuration int64 `json:"expiryDuration"`
+	// Expiry is the time when the issue will expire
+	Exipiry int64 `json:"expiry"`
+	// Refresh is a flag to force a refresh of the issue
+	Refresh bool            `json:"refresh"`
+	Status  IssueUserStatus `json:"status"`
 }
 
 // IssueUserParameters is the user facing interface for configuring a user issue.
@@ -33,6 +40,10 @@ type IssueUserParameters struct {
 	User          string              `json:"user"`
 	UseSigningKey string              `json:"useSigningKey,omitempty"`
 	Claims        v1alpha1.UserClaims `json:"claims,omitempty"`
+	// Expiry is the time when the issue will expire
+	ExpirationDuration string `json:"expiryDuration"`
+	// Refresh is a flag to force a refresh of the issue
+	Refresh bool `json:"refresh"`
 }
 
 type IssueUserData struct {
@@ -44,8 +55,15 @@ type IssueUserData struct {
 	Status        IssueUserStatus     `json:"status"`
 }
 
+type UserIssueUserStatus struct {
+	Nkey       bool  `json:"nkey"`
+	JWT        bool  `json:"jwt"`
+	JWTRefresh int64 `json:"jwtRefresh"`
+	JWTExpiry  int64 `json:"jwtExpiry"`
+}
+
 type IssueUserStatus struct {
-	User IssueStatus `json:"user"`
+	User UserIssueUserStatus `json:"user"`
 }
 
 func pathUserIssue(b *NatsBackend) []*framework.Path {
@@ -76,6 +94,16 @@ func pathUserIssue(b *NatsBackend) []*framework.Path {
 				"claims": {
 					Type:        framework.TypeMap,
 					Description: "User claims (jwt.UserClaims from github.com/nats-io/jwt/v2)",
+					Required:    false,
+				},
+				"expiry": {
+					Type:        framework.TypeString,
+					Description: "expiry time",
+					Required:    false,
+				},
+				"refresh": {
+					Type:        framework.TypeBool,
+					Description: "enables refreshing of the issue after 80% of the expiry time",
 					Required:    false,
 				},
 			},
@@ -228,11 +256,13 @@ func refreshUser(ctx context.Context, storage logical.Storage, issue *IssueUserS
 		return err
 	}
 
+	// if issue == nil || issue.Refresh {
 	// create jwt
 	err = issueUserJWT(ctx, storage, *issue)
 	if err != nil {
 		return err
 	}
+	// }
 
 	// create creds
 	err = issueUserCreds(ctx, storage, *issue)
@@ -246,7 +276,6 @@ func refreshUser(ctx context.Context, storage logical.Storage, issue *IssueUserS
 	if err != nil {
 		return err
 	}
-
 	if issue.User == DefaultPushUser {
 		// force update of operator
 		// so he gets updates from sys account
@@ -369,6 +398,16 @@ func storeUserIssue(ctx context.Context, storage logical.Storage, params IssueUs
 	issue.Account = params.Account
 	issue.User = params.User
 	issue.UseSigningKey = params.UseSigningKey
+	if params.ExpirationDuration != "" {
+		expiryNanos, err := time.ParseDuration(params.ExpirationDuration)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse expiry: %s", err)
+		}
+		expirySeconds := int64(expiryNanos.Seconds())
+		issue.ExpirationDuration = expirySeconds
+		issue.Exipiry = time.Now().Unix() + int64(expirySeconds)
+		issue.Refresh = params.Refresh
+	}
 	err = storeInStorage(ctx, storage, path, issue)
 	if err != nil {
 		return nil, err
@@ -481,6 +520,9 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 
 	issue.Claims.ClaimsData.Subject = userPublicKey
 	issue.Claims.ClaimsData.Issuer = signingPublicKey
+	if issue.Exipiry > 0 {
+		issue.Claims.ClaimsData.Expires = issue.Exipiry
+	}
 	natsJwt, err := v1alpha1.Convert(&issue.Claims)
 	if err != nil {
 		return fmt.Errorf("could not convert claims to nats jwt: %s", err)
@@ -495,6 +537,8 @@ func issueUserJWT(ctx context.Context, storage logical.Storage, issue IssueUserS
 		Operator: issue.Operator,
 		Account:  issue.Account,
 		User:     issue.User,
+		Refresh:  issue.Refresh,
+		Exipiry:  issue.Exipiry,
 		JWTStorage: JWTStorage{
 			JWT: token,
 		},
@@ -617,4 +661,8 @@ func updateUserStatus(ctx context.Context, storage logical.Storage, issue *Issue
 	} else {
 		issue.Status.User.JWT = false
 	}
+	if issue.Refresh {
+		issue.Status.User.JWTRefresh = issue.Exipiry - issue.ExpirationDuration/5
+	}
+	issue.Status.User.JWTExpiry = issue.Exipiry
 }

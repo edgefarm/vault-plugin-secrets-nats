@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/nats-io/jwt/v2"
@@ -21,6 +22,57 @@ import (
 func TestCRUDUserIssue(t *testing.T) {
 
 	b, reqStorage := getTestBackend(t)
+	t.Run("Test initial state of user issuer", func(t *testing.T) {
+
+		path := "issue/operator/op1/account/ac1/user/us1"
+
+		// first create operator issue to be able to create account issue
+		resp, err := b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "issue/operator/op1",
+			Storage:   reqStorage,
+			Data:      map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		// then create account issue to be able to create user issue
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.CreateOperation,
+			Path:      "issue/operator/op1/account/ac1",
+			Storage:   reqStorage,
+			Data:      map[string]interface{}{},
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		// call read/delete/list without creating the issue
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ReadOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.True(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.DeleteOperation,
+			Path:      path,
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+
+		resp, err = b.HandleRequest(context.Background(), &logical.Request{
+			Operation: logical.ListOperation,
+			Path:      "issue/operator/op1/account/acc1/user",
+			Storage:   reqStorage,
+		})
+		assert.NoError(t, err)
+		assert.False(t, resp.IsError())
+		assert.Equal(t, resp.Data, map[string]interface{}{})
+
+	})
 
 	t.Run("Test initial state of user issuer", func(t *testing.T) {
 
@@ -74,7 +126,7 @@ func TestCRUDUserIssue(t *testing.T) {
 
 	})
 
-	t.Run("Test CRUD logic for user issuer", func(t *testing.T) {
+	t.Run("Test CRUD logic for user issuer with expiration no refresh", func(t *testing.T) {
 
 		/////////////////////////
 		// Prepare the test data
@@ -119,9 +171,11 @@ func TestCRUDUserIssue(t *testing.T) {
 			UseSigningKey: "",
 			Claims:        userv1.UserClaims{},
 			Status: IssueUserStatus{
-				User: IssueStatus{
-					Nkey: true,
-					JWT:  true,
+				User: UserIssueUserStatus{
+					Nkey:       true,
+					JWT:        true,
+					JWTRefresh: 0,
+					JWTExpiry:  time.Now().Add(time.Hour).Unix(),
 				},
 			},
 		}
@@ -134,7 +188,10 @@ func TestCRUDUserIssue(t *testing.T) {
 			Operation: logical.CreateOperation,
 			Path:      path,
 			Storage:   reqStorage,
-			Data:      map[string]interface{}{},
+			Data: map[string]interface{}{
+				"expiryDuration": "1h",
+				"refresh":        false,
+			},
 		})
 		assert.NoError(t, err)
 		assert.False(t, resp.IsError())
@@ -154,7 +211,7 @@ func TestCRUDUserIssue(t *testing.T) {
 		// Compare the expected and current
 		//////////////////////////////////
 		stm.MapToStruct(resp.Data, &current)
-		assert.Equal(t, expected, current)
+		assert.Equal(t, current, expected)
 
 		//////////////////////////
 		// That will be requested
@@ -196,9 +253,11 @@ func TestCRUDUserIssue(t *testing.T) {
 				},
 			},
 			Status: IssueUserStatus{
-				User: IssueStatus{
-					Nkey: true,
-					JWT:  true,
+				User: UserIssueUserStatus{
+					Nkey:       true,
+					JWT:        true,
+					JWTRefresh: 0,
+					JWTExpiry:  time.Now().Add(time.Hour).Unix(),
 				},
 			},
 		}
